@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { usuarioController } from "./usuario.controller.js";
+import { usuarioController } from "./usuarios.controller.js";
 import { validaciones } from "../../middlewares/validaciones.middleware.js";
 
 const crearUsuarioMiddlewares = [

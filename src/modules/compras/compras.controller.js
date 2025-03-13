@@ -1,6 +1,6 @@
 import { response, request } from "express";
 import { Compra } from "./compras.model.js";
-import { DetalleCompra } from "./detalle_compras.model.js";
+import { DetalleCompra } from "./detalles_compras.model.js";
 import { Insumo } from "../insumos/insumos.model.js";
 import { filtros } from "../../utils/filtros.util.js";
 import { Proveedor } from "../proveedores/proveedores.model.js";

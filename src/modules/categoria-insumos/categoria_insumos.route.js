@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { categorias_productoscontroller } from "./categorias_insumos.controller.js";
+import { categorias_productoscontroller } from "./categoria_insumos.controller.js";
 import { validaciones } from "../../middlewares/validaciones.middleware.js";
 
 export const categoriasInsumosRouter = Router()
