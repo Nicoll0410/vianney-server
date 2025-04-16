@@ -1,8 +1,5 @@
 import { Model, DataTypes, Op } from "sequelize"
 import { sequelize } from "../../database.js";
-import { Servicio } from "../servicios/servicios.model.js";
-import { Barbero } from "../barberos/barberos.model.js"
-import { Cliente } from "../clientes/clientes.model.js"
 import { format, sub } from "date-fns";
 import cron from "node-cron"
 

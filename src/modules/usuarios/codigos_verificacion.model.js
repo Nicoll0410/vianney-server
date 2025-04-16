@@ -1,7 +1,5 @@
 import { Model, DataTypes } from "sequelize"
 import { sequelize } from "../../database.js";
-import { Usuario } from "./usuarios.model.js";
-
 
 export class CodigosVerificacion extends Model { }
 

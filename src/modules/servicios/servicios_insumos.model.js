@@ -1,8 +1,5 @@
 import { Model, DataTypes } from "sequelize"
 import { sequelize } from "../../database.js";
-import { Insumo } from "../insumos/insumos.model.js";
-import { Servicio } from "./servicios.model.js";
-
 
 export class ServiciosPorInsumos extends Model { }
 

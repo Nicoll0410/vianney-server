@@ -1,6 +1,5 @@
 import { Model, DataTypes } from "sequelize";
 import { sequelize } from "../../database.js";
-import { RolesPorPermisos } from "./roles_por_permisos.js";
 
 export class Permiso extends Model { }
 

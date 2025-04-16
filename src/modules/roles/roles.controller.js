@@ -7,9 +7,6 @@ import { Usuario } from "../usuarios/usuarios.model.js"
 import { RolesPorPermisos } from "./roles_por_permisos.js";
 import { Permiso } from "./permisos.model.js";
 
-
-
-
 class RolesController {
     async get(req = request, res = response) {
         try {

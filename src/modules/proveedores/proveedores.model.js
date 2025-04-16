@@ -1,7 +1,6 @@
 import { Model, DataTypes } from "sequelize"
 import { sequelize } from "../../database.js";
 
-
 export class Proveedor extends Model { }
 
 Proveedor.init({
