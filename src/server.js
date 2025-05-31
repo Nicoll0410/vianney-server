@@ -1,5 +1,6 @@
 import express, { request, response } from "express"
 import cors from "cors"
+import morgan from 'morgan';
 import { jwtMiddlewares } from "./middlewares/jwt.middleware.js"
 import { proveedoresRouter } from "./modules/proveedores/proveedores.route.js"
 import { RouterVentas } from "./modules/ventas/ventas.route.js"
@@ -28,7 +29,7 @@ export class Server {
 
         // Espera sincronización antes de levantar el servidor
         syncAllModels().then(() => {
-            this.app.listen(process.env.PORT, () =>
+            this.app.listen(process.env.PORT, '0.0.0.0',  () =>
                 console.log(`Servidor ejecutandose en el puerto ${process.env.PORT} 🎉🎉🎉`)
             );
         }).catch(err => {
@@ -39,6 +40,7 @@ export class Server {
     middlewares() {
         this.app.use(express.json())
         this.app.use(cors())
+        this.app.use(morgan('combined'));
         new Database()
     }
 
