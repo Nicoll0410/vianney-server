@@ -119,7 +119,7 @@ class ProveedoresController {
             if (!proveedor) throw new Error("Ups, parece que no encontramos este usuario")
 
             const tieneCompras = await Compra.findAll({ where: { proveedorID: proveedor.id } })
-        console.log({tieneCompras});
+            console.log({tieneCompras});
             if (tieneCompras.length > 0) throw new Error("No puedes eliminar este proveedor, este tiene compras asociadas")
 
             const proveedorEliminado = await proveedor.destroy({

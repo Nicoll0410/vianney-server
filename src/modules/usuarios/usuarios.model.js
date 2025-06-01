@@ -18,7 +18,7 @@ Usuario.init({
         type: DataTypes.STRING,
         allowNull: false,
         get() {
-            return () => this.getDataValue("password");
+            return this.getDataValue("password");
         }
     },
     estaVerificado: {

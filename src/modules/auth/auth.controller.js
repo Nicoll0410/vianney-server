@@ -26,7 +26,7 @@ class AuthController {
                 return res.status(200).json({ success: false, reason: "USER_NOT_FOUND" });
             }
 
-            const esValido = passwordUtils.isValidPassword(password, usuario.password);
+            const esValido = await passwordUtils.isValidPassword(password, usuario.password);
             if (!esValido) {
                 return res.status(200).json({ success: false, reason: "INVALID_PASSWORD" });
             }
