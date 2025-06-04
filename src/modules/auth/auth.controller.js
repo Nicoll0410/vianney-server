@@ -18,24 +18,33 @@ import { Cliente } from "../clientes/clientes.model.js"
 class AuthController {
     async login(req = request, res = response) {
         try {
-            const usuario = await Usuario.findOne({ where: { email: req.body.email } })
-            if (!usuario) throw new Error("¡Ups! No encontramos ningún usuario con estas credenciales")
+            const { email, password } = req.body;
 
-            const esPasswordCorrecta = await passwordUtils.isValidPassword(req.body.password, usuario.getDataValue("password"))
-            if (!esPasswordCorrecta) throw new Error("¡Ups! No encontramos ningún usuario con estas credenciales")
+            const usuario = await Usuario.findOne({ where: { email } });
 
-            if (!usuario.estaVerificado) throw new Error("Ups! Parece que no has confirmado tu cuenta. Revisa tu bandeja de entrada o spam")
+            if (!usuario) {
+                return res.status(200).json({ success: false, reason: "USER_NOT_FOUND" });
+            }
 
-            const rol = await Rol.findOne({ where: { id: usuario.rolID } })
+            const esValido = await passwordUtils.isValidPassword(password, usuario.password);
+            if (!esValido) {
+                return res.status(200).json({ success: false, reason: "INVALID_PASSWORD" });
+            }
 
-            if (rol.nombre === "Paciente") throw new Error("Ups, no tienes permiso para acceder a esta zona")
+            if (!usuario.estaVerificado) {
+                return res.status(200).json({ success: false, reason: "NOT_VERIFIED" });
+            }
 
-            const token = jwt.createToken(usuario.email)
-            return res.json({ mensaje: "Usuario logeado exitosamente", token })
+            if (usuario.rol === "Paciente") {
+                return res.status(200).json({ success: false, reason: "UNAUTHORIZED_ROLE" });
+            }
+
+            const token = jwt.createToken(usuario.email);
+            return res.status(200).json({ success: true, token });
+
         } catch (error) {
-            return res.status(400).json({
-                mensaje: error.message
-            })
+            console.error("Login error:", error);
+            return res.status(500).json({ success: false, reason: "SERVER_ERROR" });
         }
     }
 
