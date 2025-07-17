@@ -28,20 +28,12 @@ Barbero.init({
         type: DataTypes.STRING(10),
         allowNull: false,
     },
-    direccion: {
-        type: DataTypes.STRING(100),
-        allowNull: false,
-    },
     fecha_nacimiento: {
         type: DataTypes.DATEONLY,
         allowNull: false,
     },
     fecha_de_contratacion: {
         type: DataTypes.DATEONLY,
-        allowNull: false,
-    },
-    nivel_academico: {
-        type: DataTypes.STRING(50),
         allowNull: false,
     },
     usuarioID: {
@@ -76,10 +68,8 @@ async function initializeAdmin() {
             avatar: null,
             cedula: 100000000,
             telefono: 100000000,
-            direccion: "",
             fecha_nacimiento: "2006-08-08",
             fecha_de_contratacion: "2006-08-08",
-            nivel_academico: "Profesional",
             profesion: "Administrador",
             usuarioID: usuario.id
         };

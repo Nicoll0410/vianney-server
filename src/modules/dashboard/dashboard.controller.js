@@ -1,252 +1,201 @@
-import { Op, Sequelize } from 'sequelize';
+import { Op, Sequelize } from "sequelize";
 import { Cita } from "../citas/citas.model.js";
 import { Compra } from "../compras/compras.model.js";
 import { Proveedor } from "../proveedores/proveedores.model.js";
 import { Barbero } from "../barberos/barberos.model.js";
 import { Usuario } from "../usuarios/usuarios.model.js";
 import { Rol } from "../roles/roles.model.js";
-import { Servicio } from '../servicios/servicios.model.js';
-import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
+import { Servicio } from "../servicios/servicios.model.js";
+import { format, subMonths, startOfMonth } from "date-fns";
 
 export class DashboardController {
-
     get = async (req, res) => {
         try {
-            // Fechas para generar la lista de los últimos 8 meses
-            const generateLast8Months = () => {
-                const months = [];
-                let date = new Date();
-                for (let i = 0; i < 8; i++) {
-                    months.push(format(subMonths(startOfMonth(date), i), 'yyyy-MM'));
-                }
-                return months.reverse();
-            };
+            /* ── últimos 8 meses ──────────────────────── */
+            const monthsList = [...Array(8).keys()]
+                .map(i => format(subMonths(startOfMonth(new Date()), i), "yyyy-MM"))
+                .reverse();
 
-            const monthsList = generateLast8Months();
             const monthMap = {
-                '01': 'Enero',
-                '02': 'Febrero',
-                '03': 'Marzo',
-                '04': 'Abril',
-                '05': 'Mayo',
-                '06': 'Junio',
-                '07': 'Julio',
-                '08': 'Agosto',
-                '09': 'Septiembre',
-                '10': 'Octubre',
-                '11': 'Noviembre',
-                '12': 'Diciembre'
+                "01": "Enero", "02": "Febrero", "03": "Marzo", "04": "Abril",
+                "05": "Mayo", "06": "Junio", "07": "Julio", "08": "Agosto",
+                "09": "Septiembre", "10": "Octubre", "11": "Noviembre", "12": "Diciembre"
             };
 
-            // Ventas por mes de los últimos 8 meses
+            /* ── Ventas por mes ───────────────────────── */
             const ventasPorMesRaw = await Cita.findAll({
                 attributes: [
-                    [Sequelize.fn('DATE_FORMAT', Sequelize.col('fecha'), '%Y-%m'), 'x'],
-                    [Sequelize.fn('sum', Sequelize.col('servicio.precio')), 'y']
+                    [Sequelize.fn("DATE_FORMAT", Sequelize.col("cita.fecha"), "%Y-%m"), "x"],
+                    [Sequelize.fn("SUM", Sequelize.col("servicio.precio")), "y"],
                 ],
-                include: [{
-                    model: Servicio,
-                    attributes: []
-                }],
+                include: [{ model: Servicio, as: "servicio", attributes: [] }],   // ← as: "servicio"
                 where: {
-                    estado: 'Completa',
-                    fecha: {
-                        [Op.between]: [new Date(new Date().setFullYear(new Date().getFullYear() - 1)), new Date()]
-                    }
+                    estado: "Completa",
+                    fecha: { [Op.between]: [subMonths(new Date(), 11), new Date()] },
                 },
-                group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('fecha'), '%Y-%m')],
-                order: [[Sequelize.fn('DATE_FORMAT', Sequelize.col('fecha'), '%Y-%m'), 'DESC']],
-                raw: true
+                group: ["x"],
+                raw: true,
             });
 
-            // Compras por mes de los últimos 8 meses
+            /* ── Compras por mes ──────────────────────── */
             const comprasPorMesRaw = await Compra.findAll({
                 attributes: [
-                    [Sequelize.fn('DATE_FORMAT', Sequelize.col('fecha'), '%Y-%m'), 'x'],
-                    [Sequelize.fn('sum', Sequelize.col('costo')), 'y']
+                    [Sequelize.fn("DATE_FORMAT", Sequelize.col("compra.fecha"), "%Y-%m"), "x"],
+                    [Sequelize.fn("SUM", Sequelize.col("compra.costo")), "y"],
                 ],
                 where: {
                     estaAnulado: false,
-                    fecha: {
-                        [Op.between]: [new Date(new Date().setFullYear(new Date().getFullYear() - 1)), new Date()]
-                    }
+                    fecha: { [Op.between]: [subMonths(new Date(), 11), new Date()] },
                 },
-                group: [Sequelize.fn('DATE_FORMAT', Sequelize.col('fecha'), '%Y-%m')],
-                order: [[Sequelize.fn('DATE_FORMAT', Sequelize.col('fecha'), '%Y-%m'), 'DESC']],
-                raw: true
+                group: ["x"],
+                raw: true,
             });
 
-            // Mapeo de ventas y compras por mes
-            const ventasPorMes = monthsList.map(month => {
-                const item = ventasPorMesRaw.find(i => i.x === month) || { y: 0 };
-                const [_, monthNum] = month.split('-');
-                return {
-                    x: monthMap[monthNum],
-                    y: parseInt(item.y)
-                };
-            });
+            /* ── Mapear a formato de frontend ─────────── */
+            const toSerie = (raw, months) =>
+                months.map(m => {
+                    const r = raw.find(i => i.x === m) || { y: 0 };
+                    return { x: monthMap[m.split("-")[1]], y: +r.y };
+                });
 
-            const comprasPorMes = monthsList.map(month => {
-                const item = comprasPorMesRaw.find(i => i.x === month) || { y: 0 };
-                const [_, monthNum] = month.split('-');
-                return {
-                    x: monthMap[monthNum],
-                    y: parseInt(item.y)
-                };
-            });
+            const ventasPorMes = toSerie(ventasPorMesRaw, monthsList);
+            const comprasPorMes = toSerie(comprasPorMesRaw, monthsList);
 
-            // Cálculo de ventas, compras y ganancias del mes actual y del mes pasado
-            const ventasEsteMes = ventasPorMes[7].y;
-            const ventasLastMonth = ventasPorMes[6].y;
-            const comprasEsteMes = comprasPorMes[7].y;
-            const comprasLastMonth = comprasPorMes[6].y;
-            const profitEsteMes = ventasEsteMes - comprasEsteMes;
-            const profitLastMonth = ventasLastMonth - comprasLastMonth;
+            /* ── Totales y variaciones ─────────────────── */
+            const ventasThis = ventasPorMes.at(-1).y;
+            const ventasPrev = ventasPorMes.at(-2).y;
+            const comprasThis = comprasPorMes.at(-1).y;
+            const comprasPrev = comprasPorMes.at(-2).y;
+            const profitThis = ventasThis - comprasThis;
+            const profitPrev = ventasPrev - comprasPrev;
 
-            // Cálculo de cambios porcentuales
-            const calculatePercentageChange = (current, last) => {
-                if (last === 0) {
-                    return current === 0 ? 0 : (current > 0 ? 100 : -100);
-                }
-                return ((current - last) / Math.abs(last)) * 100;
-            };
+            const pct = (cur, prev) =>
+                prev === 0 ? (cur === 0 ? 0 : 100) : ((cur - prev) / Math.abs(prev)) * 100;
 
-            const ventasChange = calculatePercentageChange(ventasEsteMes, ventasLastMonth);
-            const comprasChange = calculatePercentageChange(comprasEsteMes, comprasLastMonth);
-            const profitChange = calculatePercentageChange(profitEsteMes, profitLastMonth);
+            /* ── Ganancias últimos 4 meses ─────────────── */
+            const gananciasPorMes = ventasPorMes.slice(-4).map((v, i) => ({
+                label: v.x,
+                id: v.x,
+                value: v.y - comprasPorMes.slice(-4)[i].y,
+            }));
 
-            console.log({ profitChange, profitEsteMes, profitLastMonth });
-
-
-            // Cálculo de ganancias por mes
-            const gananciasPorMes = ventasPorMes.slice(4, 8).map((venta, i) => {
-                return {
-                    label: venta.x,
-                    id: venta.x,
-                    value: venta.y - comprasPorMes[i + 4].y
-                }
-            });
-
-            // Top barberos, tipos de usuarios, y top proveedores se mantienen igual
+            /* ── Top barberos ─────────────────────────── */
             const topBarberos = await Cita.findAll({
                 attributes: [
-                    'barberoID',
-                    [Sequelize.fn('count', Sequelize.col('cita.id')), 'citas']
+                    "barberoID",
+                    [Sequelize.fn("COUNT", Sequelize.col("cita.id")), "citas"],
                 ],
-                where: {
-                    estado: 'Completa'
-                },
-                include: [{
-                    model: Barbero,
-                    attributes: ['nombre', 'avatar']
-                }],
-                group: ['barberoID', 'barbero.id'],
-                order: [[Sequelize.fn('count', Sequelize.col('cita.id')), 'DESC']],
-                limit: 5
+                where: { estado: "Completa" },
+                include: [{ model: Barbero, as: "barbero", attributes: ["nombre", "avatar"] }], // ← as: "barbero"
+                group: ["barberoID", "barbero.id"],
+                order: [[Sequelize.literal("citas"), "DESC"]],
+                limit: 5,
+                raw: true,
+                nest: true,
             });
 
-            const topServicios = (await Cita.findAll({
-                attributes: [
-                    'servicioID',
-                    [Sequelize.fn('count', Sequelize.col('cita.id')), 'citas']
-                ],
-                where: {
-                    estado: 'Completa'
-                },
-                include: [{
-                    model: Servicio,
-                    attributes: ['nombre']
-                }],
-                group: ['servicioID', 'servicio.id'],
-                order: [[Sequelize.fn('count', Sequelize.col('cita.id')), 'DESC']],
-                limit: 8
-            })).map(service => {
-                const { citas, servicio } = service.dataValues;
-                return { value: citas, id: servicio.nombre, label: servicio.nombre };
+            /* ── Top servicios ────────────────────────── */
+            const topServicios = (
+                await Cita.findAll({
+                    attributes: [
+                        "servicioID",
+                        [Sequelize.fn("COUNT", Sequelize.col("cita.id")), "citas"],
+                    ],
+                    where: { estado: "Completa" },
+                    include: [{ model: Servicio, as: "servicio", attributes: ["nombre"] }], // ← as: "servicio"
+                    group: ["servicioID", "servicio.id"],
+                    order: [[Sequelize.literal("citas"), "DESC"]],
+                    limit: 8,
+                    raw: true,
+                    nest: true,
+                })
+            ).map(s => ({ value: s.citas, id: s.servicio.nombre, label: s.servicio.nombre }));
+
+            /* ── Horas con más citas ───────────────────── */
+            const topHoras = (
+                await Cita.findAll({
+                    attributes: [
+                        "hora",
+                        [Sequelize.fn("COUNT", Sequelize.col("cita.hora")), "cantidad"],
+                    ],
+                    group: ["hora"],
+                    order: [["hora", "ASC"]],
+                    limit: 6,
+                    raw: true,
+                })
+            ).map(h => {
+                const [hh, mm] = h.hora.split(":");
+                const hour = ((+hh + 11) % 12) + 1;
+                const ampm = +hh >= 12 ? "PM" : "AM";
+                return { value: h.cantidad, id: `${hour}:${mm} ${ampm}`, label: `${hour}:${mm} ${ampm}` };
             });
 
-            const topHoras = (await Cita.findAll({
-                attributes: [
-                    "hora",
-                    [Sequelize.fn('count', Sequelize.col('cita.hora')), 'cantidad']
-                ],
-                group: ['cita.hora'],
-                order: [['hora', 'ASC']],
-                limit: 6
-            })).map(date => {
-                const { cantidad, hora } = date.dataValues;
-                const [hours, minutes, seconds] = hora.split(':');
-                let hour = parseInt(hours);
-                const ampm = hour >= 12 ? 'PM' : 'AM';
+            /* ── Tipos de usuarios ───────────────────────── */
+            const tiposDeUsuarios = (
+                await Usuario.findAll({
+                    attributes: [
+                        [Sequelize.fn("COUNT", Sequelize.col("usuario.id")), "value"],
+                        "rolID",
+                    ],
+                    include: [
+                        {
+                            model: Rol,
+                            as: "rol",          // ← alias obligatorio
+                            attributes: ["nombre"],
+                        },
+                    ],
+                    group: ["rolID", "rol.id"],
+                    raw: true,
+                    nest: true,
+                })
+            ).map(r => ({
+                value: r.value,
+                id: r.rol.nombre,
+                label: r.rol.nombre,
+            }));
 
-                hour = hour % 12;
-                hour = hour ? hour : 12;
 
-                const completeHour = `${hour}:${minutes} ${ampm}`;
-                return { value: cantidad, id: completeHour, label: completeHour };
-            });
+            /* ── Top proveedores ───────────────────────── */
+            const topProveedores = (
+                await Compra.findAll({
+                    attributes: [
+                        "proveedorID",
+                        [Sequelize.fn("COUNT", Sequelize.col("compra.id")), "value"],
+                    ],
+                    include: [{ model: Proveedor, as: "proveedor", attributes: ["nombre"] }], // ← as: "proveedor"
+                    group: ["proveedorID", "proveedor.id"],
+                    order: [[Sequelize.literal("value"), "DESC"]],
+                    limit: 7,
+                    raw: true,
+                    nest: true,
+                })
+            ).map(p => ({ value: p.value, id: p.proveedor.nombre, label: p.proveedor.nombre }));
 
             const citasCompletadasTotales = await Cita.count({ where: { estado: "Completa" } });
 
-            const tiposDeUsuarios = (await Usuario.findAll({
-                attributes: [
-                    [Sequelize.fn('count', Sequelize.col('usuario.id')), 'value'],
-                    'rolID'
-                ],
-                include: [{
-                    model: Rol,
-                    attributes: ['nombre']
-                }],
-                group: ['rolID', 'rol.id']
-            })).map(shop => {
-                const { value, rol } = shop.dataValues;
-                return { value, id: rol.nombre, label: rol.nombre };
-            });
-
-            const topProveedores = (await Compra.findAll({
-                attributes: [
-                    'proveedorID',
-                    [Sequelize.fn('count', Sequelize.col('proveedor.id')), 'value']
-                ],
-                include: [{
-                    model: Proveedor,
-                    attributes: ['nombre'],
-                    as: "proveedor",
-                }],
-                group: ['proveedorID', 'proveedor.id'],
-                order: [[Sequelize.fn('count', Sequelize.col('proveedor.id')), 'DESC']],
-                limit: 7
-            })).map(provider => {
-                const { value, proveedor } = provider.dataValues;
-                return { value, id: proveedor.nombre, label: proveedor.nombre };
-            });
-
-
-
+            /* ── Respuesta ─────────────────────────────── */
             return res.json({
-                ventasEsteMes,
-                comprasEsteMes,
-                profitEsteMes,
+                ventasEsteMes: ventasThis,
+                comprasEsteMes: comprasThis,
+                profitEsteMes: profitThis,
                 ventasPorMes,
+                comprasPorMes,
+                gananciasPorMes,
+                ventasChange: pct(ventasThis, ventasPrev),
+                comprasChange: pct(comprasThis, comprasPrev),
+                profitChange: pct(profitThis, profitPrev),
                 topBarberos,
+                topServicios,
+                topHoras,
                 tiposDeUsuarios,
                 topProveedores,
                 citasCompletadasTotales,
-                ventasChange,
-                topHoras,
-                comprasChange,
-                profitChange,
-                comprasPorMes,
-                gananciasPorMes,
-                topServicios
             });
-
-        } catch (error) {
-            console.error(error);
-            return res.status(500).json({ error: 'Internal Server Error' });
+        } catch (err) {
+            console.error("💥 Dashboard error:", err);
+            return res.status(500).json({ error: "Internal Server Error" });
         }
-    }
-
+    };
 }
 
 export const dashboardController = new DashboardController();

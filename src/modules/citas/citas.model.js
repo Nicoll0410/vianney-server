@@ -1,7 +1,7 @@
-import { Model, DataTypes, Op } from "sequelize"
+import { Model, DataTypes, Op } from "sequelize";
 import { sequelize } from "../../database.js";
 import { format, sub } from "date-fns";
-import cron from "node-cron"
+import cron from "node-cron";
 
 export class Cita extends Model { }
 
@@ -44,10 +44,10 @@ Cita.init({
         allowNull: false,
     },
     estado: {
-        type: DataTypes.ENUM(["Cancelada", "Expirada", "Completa", "Pendiente"]),
-        allowNull: false
-    },
-
+        type: DataTypes.ENUM("Cancelada", "Expirada", "Completa", "Pendiente"),
+        allowNull: false,
+        defaultValue: "Pendiente"
+    }
 }, {
     sequelize,
     modelName: "cita",
@@ -65,10 +65,8 @@ Cita.init({
                 year: 'numeric'
             });
         }
-        
     }
-})
-
+});
 
 const task = cron.schedule('* * * * *', async () => {
     try {
@@ -82,12 +80,11 @@ const task = cron.schedule('* * * * *', async () => {
             }
         });
 
-
         if (citasPendientes.length > 0) {
             citasPendientes.forEach(async cita => {
-                cita.estado = "Expirada"
-                await cita.save()
-            })
+                cita.estado = "Expirada";
+                await cita.save();
+            });
         }
 
     } catch (error) {
@@ -96,3 +93,5 @@ const task = cron.schedule('* * * * *', async () => {
 }, {
     scheduled: false
 });
+
+export default Cita;

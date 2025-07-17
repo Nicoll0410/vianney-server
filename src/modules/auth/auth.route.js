@@ -1,55 +1,105 @@
 import { Router } from "express";
 import { authController } from "./auth.controller.js";
 import { validaciones } from "../../middlewares/validaciones.middleware.js";
-export const authRouter = Router()
 
+export const authRouter = Router();
 
+/* ───────────── LOGIN ───────────── */
+authRouter.post("/login", loginValidaciones(), (req, res) =>
+  authController.login(req, res)
+);
+authRouter.post("/login-client", loginValidaciones(), (req, res) =>
+  authController.loginClient(req, res)
+);
+authRouter.post("/login-mobile", loginValidaciones(), (req, res) =>
+  authController.loginMobile(req, res)
+);
 
-authRouter.post("/login", authValidaciones(), authController.login)
-authRouter.post("/login-client", authValidaciones(), authController.loginClient)
-authRouter.post("/login-mobile", authValidaciones(), authController.loginMobile)
-authRouter.post("/signup", authValidaciones(), authController.signUp)
+/* ─────────── SIGN‑UP ───────────── */
+authRouter.post("/signup", signupValidaciones(), (req, res) =>
+  authController.signUp(req, res)
+);
 
-authRouter.post("/verify-account", verifyTokenValidaciones(), authController.verifyAccount)
+/* ────── VERIFICAR CUENTA ───────── */
+authRouter.post(
+  "/verify-account",
+  verifyAccountValidaciones(),
+  (req, res) => authController.verifyAccount(req, res)
+);
 
-authRouter.get("/verify-token", validaciones.estaHeaderVacio("Authorization", "El token es obligatorio"), authController.verifyToken)
+/* ───── COMPROBAR TOKEN JWT ─────── */
+authRouter.get(
+  "/verify-token",
+  validaciones.estaHeaderVacio("Authorization", "El token es obligatorio"),
+  (req, res) => authController.verifyToken(req, res)
+);
 
+/* ───── PERMISOS POR RUTA ───────── */
+authRouter.get(
+  "/routes-permission",
+  validaciones.estaHeaderVacio("Authorization", "El token es obligatorio"),
+  (req, res) => authController.routesPermission(req, res)
+);
 
-authRouter.get("/routes-permission", validaciones.estaHeaderVacio("Authorization", "El token es obligatorio"), authController.routesPermission)
+/* ─── RECUPERAR / CAMBIAR PASS ──── */
+authRouter.post(
+  "/recover-password",
+  recoverPasswordValidaciones(),
+  (req, res) => authController.recoverPassword(req, res)
+);
+authRouter.post(
+  "/verify-recover-password",
+  verifyRecoverPasswordValidaciones(),
+  (req, res) => authController.verifyRecoverPassword(req, res)
+);
+/* ───── REENVIAR CÓDIGO VERIFICACIÓN ───────── */
+authRouter.post(
+  "/resend-code",
+  [
+    validaciones.estaVacio("email", "El email es obligatorio"),
+    validaciones.esEmail("email", "El email no tiene el formato correcto"),
+  ],
+  (req, res) => authController.resendVerificationCode(req, res)
+);
 
-authRouter.post("/recover-password", recoverPasswordValidaciones(), authController.recoverPassword)
-authRouter.post("/verify-recover-password", verifyRecoverPasswordValidaciones(), authController.verifyRecoverPassword)
+/* ============== VALIDACIONES ============== */
 
-
-
-function authValidaciones() {
-    return [
-        validaciones.estaVacio("email", "El email es un campo obligatorio"),
-        validaciones.esEmail("email", "El email no tiene el formato correcto"),
-        validaciones.estaVacio("password", "La contraseña es un campo obligatorio"),
-    ]
+function loginValidaciones() {
+  return [
+    validaciones.estaVacio("email", "El email es obligatorio"),
+    validaciones.esEmail("email", "El email no tiene el formato correcto"),
+    validaciones.estaVacio("password", "La contraseña es obligatoria"),
+  ];
 }
-function verifyTokenValidaciones() {
-    return [
-        validaciones.estaVacio("email", "El email es obligatorio"),
-        validaciones.esEmail("email", "El email no tiene el formato correcto"),
-        validaciones.estaVacio("codigo", "El código de verificación es obligatorio"),
-    ]
+
+function signupValidaciones() {
+  return [
+    validaciones.estaVacio("email", "El email es obligatorio"),
+    validaciones.esEmail("email", "El email no tiene el formato correcto"),
+    validaciones.estaVacio("password", "La contraseña es obligatoria"),
+  ];
 }
 
+function verifyAccountValidaciones() {
+  return [
+    validaciones.estaVacio("email", "El email es obligatorio"),
+    validaciones.esEmail("email", "El email no tiene el formato correcto"),
+    validaciones.estaVacio("codigo", "El código de verificación es obligatorio"),
+  ];
+}
 
 function recoverPasswordValidaciones() {
-    return [
-        validaciones.estaVacio("email", "El email es obligatorio"),
-        validaciones.esEmail("email", "El email no tiene el formato correcto"),
-    ]
+  return [
+    validaciones.estaVacio("email", "El email es obligatorio"),
+    validaciones.esEmail("email", "El email no tiene el formato correcto"),
+  ];
 }
 
 function verifyRecoverPasswordValidaciones() {
-    return [
-        validaciones.estaVacio("email", "El email es obligatorio"),
-        validaciones.esEmail("email", "El email no tiene el formato correcto"),
-        validaciones.estaVacio("codigo", "El codigo es obligatorio"),
-        validaciones.estaVacio("password", "El password es obligatorio"),
-    ]
+  return [
+    validaciones.estaVacio("email", "El email es obligatorio"),
+    validaciones.esEmail("email", "El email no tiene el formato correcto"),
+    validaciones.estaVacio("codigo", "El código es obligatorio"),
+    validaciones.estaVacio("password", "La contraseña es obligatoria"),
+  ];
 }

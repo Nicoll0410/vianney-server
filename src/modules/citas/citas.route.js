@@ -20,7 +20,6 @@ citasRouter.post("/", [
     validaciones.estaVacio("pacienteID", "El id del paciente es obligatorio"),
     validaciones.estaVacio("barberoID", "El id del barbero es obligatorio"),
     validaciones.estaVacio("servicioID", "El id del servicio es obligatorio"),
-    validaciones.estaVacio("direccion", "La direccion es obligatoria"),
     validaciones.estaVacio("fecha", "La fecha  es obligatorio"),
     validaciones.estaVacio("hora", "La hora es obligatoria")
 ], citasController.create)
@@ -28,7 +27,6 @@ citasRouter.post("/", [
 citasRouter.post("/by-patient", [
     validaciones.estaVacio("barberoID", "El id del barbero es obligatorio"),
     validaciones.estaVacio("servicioID", "El id del servicio es obligatorio"),
-    validaciones.estaVacio("direccion", "La direccion es obligatoria"),
     validaciones.estaVacio("fecha", "La fecha  es obligatorio"),
     validaciones.estaVacio("hora", "La hora es obligatoria")
 ], citasController.createByPatient)
@@ -37,7 +35,6 @@ citasRouter.put("/:id", [
     validaciones.estaVacio("pacienteID", "El id del paciente es obligatorio"),
     validaciones.estaVacio("barberoID", "Este id es obligatorio"),
     validaciones.estaVacio("servicioID", "Este id es obligatorio"),
-    validaciones.estaVacio("direccion", "La direccion es obligatoria"),
     validaciones.estaVacio("fecha", "La fecha  es obligatorio"),
     validaciones.estaVacio("hora", "La hora es obligatoria")
 ], citasController.update)

@@ -1,48 +1,54 @@
-import { Sequelize } from "sequelize"
-import mySQLDialect from 'mysql2'
+/* =========================================================
+   src/database.js  —  COMPLETO (con logging de SQL habilitado)
+   ========================================================= */
+import { Sequelize } from "sequelize";
+import mySQLDialect from "mysql2";
 
 export class Database {
-    constructor() {
-        this.database = null;
+  constructor() {
+    this.database = null;
 
-        (async () => {
-            const { DATABASE_USERNAME, DATABASE_PASSWORD, DATABASE_HOST, DATABASE_PORT, DATABASE_NAME } = process.env
+    (async () => {
+      const {
+        DATABASE_USERNAME,
+        DATABASE_PASSWORD,
+        DATABASE_HOST,
+        DATABASE_PORT,
+        DATABASE_NAME,
+      } = process.env;
 
-            try {
-                this.database = new Sequelize({
-                    username: DATABASE_USERNAME,
-                    password: DATABASE_PASSWORD,
-                    host: DATABASE_HOST,
-                    dialect: "mysql",
-                    dialectModule: mySQLDialect,
-                    port: DATABASE_PORT,
-                    logging: false,
-                    database: DATABASE_NAME,
+      try {
+        /* ───────────── Sequelize instance ───────────── */
+        this.database = new Sequelize({
+          username: DATABASE_USERNAME,
+          password: DATABASE_PASSWORD,
+          host:     DATABASE_HOST,
+          port:     DATABASE_PORT,
+          database: DATABASE_NAME,
+          dialect:  "mysql",
+          dialectModule: mySQLDialect,
 
-                })
+          /*  👇  ver todas las queries en consola  👇  */
+          logging: console.log,
 
-                await this.database.authenticate()
+          /*  👇  fija la zona horaria a Colombia  👇  */
+          timezone: "-05:00",
+          dialectOptions: { timezone: "-05:00" },
+        });
 
+        await this.database.authenticate();
+        console.log("\x1b[32m", "Base de datos conectada 🎉🎉🎉");
+      } catch (error) {
+        console.log("\x1b[31m", "Ocurrió un error conectando la base de datos:");
+        console.log(error.message);
+      }
+    })();
+  }
 
-                // Resolución de error max index keys 
-                // for (let i = 2; i <= 63; i++) {
-                //     await this.database.query(`ALTER TABLE roles DROP INDEX nombre_${i};`);
-                // }
-
-
-                console.log("\x1b[32m", "Base de datos conectada 🎉🎉🎉")
-            } catch (error) {
-                console.log("\x1b[31m", "Ocurrió un error conectando la base de datos")
-                console.log(error.message)
-            }
-        })()
-
-    }
-
-    getDatabase() {
-        return this.database;
-    }
+  getDatabase() {
+    return this.database;
+  }
 }
 
-export const database = new Database()
-export const sequelize = database.getDatabase()
+export const database  = new Database();
+export const sequelize = database.getDatabase();

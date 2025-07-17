@@ -19,7 +19,8 @@ Insumo.init({
     },
     cantidad: {
         type: DataTypes.INTEGER,
-        allowNull: false
+        allowNull: false,
+        defaultValue: 0
     },
     unidadMedida: {
         type: DataTypes.ENUM("Kg", "Gr", "Lt", "Ml"),
@@ -31,10 +32,5 @@ Insumo.init({
     }
 }, {
     sequelize,
-    modelName: "insumo",
-    hooks: {
-        beforeValidate: (insumo) => {
-            insumo.cantidad = 0
-        }
-    }
+    modelName: "insumo"
 })

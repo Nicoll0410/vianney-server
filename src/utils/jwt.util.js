@@ -1,19 +1,27 @@
-import jsonwebtoken from "jsonwebtoken"
+import jsonwebtoken from "jsonwebtoken";
 
 class JWT {
-    createToken(email) {
-        const token = jsonwebtoken.sign({ email }, process.env.JWT_SECRET)
-        return token;
-    }
+  /**
+   * Crea un token.  
+   * - Si recibe un string, lo asume como email y firma { email }.  
+   * - Si recibe un objeto, firma el objeto completo.  
+   * @param {string | object} data  email o payload completo
+   * @param {string} expiresIn      tiempo de vida (p. ej. "7d")
+   */
+  createToken(data, expiresIn = "7d") {
+    const payload =
+      typeof data === "string" ? { email: data } : { ...data };
+    return jsonwebtoken.sign(payload, process.env.JWT_SECRET, { expiresIn });
+  }
 
-    isTokenValid(token) {
-        try {
-            jsonwebtoken.verify(token, process.env.JWT_SECRET)
-            return true;
-        } catch (error) {
-            return false;
-        }
+  isTokenValid(token) {
+    try {
+      jsonwebtoken.verify(token, process.env.JWT_SECRET);
+      return true;
+    } catch {
+      return false;
     }
+  }
 }
 
-export const jwt = new JWT() 
+export const jwt = new JWT();

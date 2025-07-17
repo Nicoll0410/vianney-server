@@ -10,7 +10,6 @@ import { sendEmail } from "../../utils/send-email.util.js";
 import { Cliente } from "../clientes/clientes.model.js";
 import { Barbero } from "../barberos/barberos.model.js";
 import jwt from "jsonwebtoken"
-
 import { Rol } from "../roles/roles.model.js";
 
 class UsuarioController {
@@ -30,25 +29,81 @@ class UsuarioController {
 
     async getUserInfo(req = request, res = response) {
         try {
-            const authHeader = req.header("Authorization")
-
-            if (!authHeader) throw new Error({ mensaje: "¡Ups! Parece que no tienes una sesión activa" })
-            if (!authHeader.startsWith('Bearer ')) throw new Error({ mensaje: "Formato del token invalido" })
+            const authHeader = req.header("Authorization");
+            
+            if (!authHeader) throw new Error("¡Ups! Parece que no tienes una sesión activa");
+            if (!authHeader.startsWith('Bearer ')) throw new Error("Formato del token inválido");
+            
             const token = authHeader.split(' ')[1];
-
             const { email } = jwt.decode(token);
-            const usuario = await Usuario.findOne({ where: { email } })
-            const rolPaciente = await Rol.findOne({ where: { nombre: "Paciente" } })
-            const modelType = usuario.rolID === rolPaciente.id ? Cliente : Barbero
-            const data = await modelType.findOne({ where: { usuarioID: usuario.id }, include: Usuario })
-
-            return res.json(data)
+            
+            const usuario = await Usuario.findOne({ 
+                where: { email },
+                include: [
+                    { 
+                        model: Rol,
+                        attributes: ["nombre", "avatar"]
+                    }
+                ]
+            });
+            
+            if (!usuario) throw new Error("Usuario no encontrado");
+            
+            // Determinar si es cliente o barbero
+            const rolPaciente = await Rol.findOne({ where: { nombre: "Paciente" } });
+            const modelType = usuario.rolID === rolPaciente.id ? Cliente : Barbero;
+            
+            const userInfo = await modelType.findOne({ 
+                where: { usuarioID: usuario.id },
+                include: [
+                    {
+                        model: Usuario,
+                        attributes: ["id", "email", "estaVerificado", "createdAt"],
+                        include: [
+                            {
+                                model: Rol,
+                                attributes: ["nombre", "avatar"]
+                            }
+                        ]
+                    }
+                ]
+            });
+            
+            if (!userInfo) {
+                return res.json({
+                    nombre: usuario.email.split('@')[0],
+                    email: usuario.email,
+                    rol: usuario.rol?.nombre || "Usuario",
+                    avatar: usuario.rol?.avatar || null
+                });
+            }
+            
+            // Formatear la respuesta
+            const responseData = {
+                id: userInfo.id,
+                nombre: userInfo.nombre || userInfo.usuario?.email.split('@')[0],
+                email: userInfo.usuario?.email,
+                telefono: userInfo.telefono || null,
+                direccion: userInfo.direccion || null,
+                rol: userInfo.usuario?.rol?.nombre || "Usuario",
+                avatar: userInfo.usuario?.rol?.avatar || null,
+                ...(modelType === Cliente ? {
+                    fechaNacimiento: userInfo.fechaNacimiento,
+                    genero: userInfo.genero
+                } : {
+                    especialidad: userInfo.especialidad,
+                    experiencia: userInfo.experiencia
+                })
+            };
+            
+            return res.json(responseData);
         } catch (error) {
             return res.status(400).json({
                 mensaje: error.message
-            })
+            });
         }
     }
+    
 
     async getPatientWithoutInformation(req = request, res = response) {
         try {
@@ -68,6 +123,7 @@ class UsuarioController {
             });
         }
     }
+
     async getBarberWithoutInformation(req = request, res = response) {
         try {
             const usuarios = await Usuario.findAll({
@@ -87,37 +143,69 @@ class UsuarioController {
         }
     }
 
-    async create(req = request, res = response) {
-        try {
-            const { email, password: plainPassword } = req.body
+// Modificar el método create para enviar el código de verificación
 
-            const usuarioYaExiste = await Usuario.findOne({ where: { email } })
-            if (usuarioYaExiste) throw new Error("Este email ya se encuentra registrado")
-            const password = await passwordUtils.encrypt(plainPassword)
+async create(req = request, res = response) {
+  try {
+    const { email, password: plainPassword } = req.body;
 
-
-            const usuario = await Usuario.create({ ...req.body, password })
-
-            const codigo = (customAlphabet("0123456789", 6))()
-            await CodigosVerificacion.create({ usuarioID: usuario.id, codigo })
-
-            await sendEmail({ to: email, subject: "Confirmación de identidad", html: correos.envioCredenciales({ codigo, email, password: plainPassword }) })
-
-            return res.status(201).json({
-                mensaje: "Usuario registrado correctamente",
-                usuario
-            })
-
-        } catch (error) {
-            return res.status(400).json({
-                mensaje: error.message
-            })
-        }
+    const usuarioYaExiste = await Usuario.findOne({ where: { email } });
+    if (usuarioYaExiste) {
+      return res.status(400).json({
+        success: false,
+        mensaje: "Este email ya se encuentra registrado"
+      });
     }
+
+    const password = await passwordUtils.encrypt(plainPassword);
+    
+    // Asignar rol Cliente por defecto si no se especifica
+    const rolCliente = await Rol.findOne({ where: { nombre: "Cliente" } });
+    const rolID = req.body.rolID || rolCliente.id;
+
+    const usuario = await Usuario.create({ 
+      ...req.body, 
+      password,
+      rolID,
+      estaVerificado: false
+    });
+
+    // Crear código de verificación
+    const codigo = (customAlphabet("0123456789", 6))();
+    await CodigosVerificacion.create({ usuarioID: usuario.id, codigo });
+
+    // Generar link de verificación que apunta a la pantalla de verificación
+    const verificationLink = `${process.env.FRONTEND_URL}/verify-email?email=${encodeURIComponent(email)}&code=${codigo}`;
+
+    // Enviar email de verificación
+    await sendEmail({ 
+      to: email, 
+      subject: "Verifica tu cuenta en NY Barber", 
+      html: correos.envioCredenciales({ 
+        codigo, 
+        email, 
+        password: plainPassword,
+        verificationLink
+      }) 
+    });
+
+    return res.status(201).json({
+      success: true,
+      mensaje: "Usuario creado correctamente. Se ha enviado un correo de verificación.",
+      usuario
+    });
+
+  } catch (error) {
+    console.error("Error en creación de usuario:", error);
+    return res.status(400).json({
+      success: false,
+      mensaje: error.message || "Error al registrar usuario"
+    });
+  }
+}
 
     async delete(req = request, res = response) {
         try {
-
             const id = req.params.id
             const usuario = await Usuario.findByPk(id)
             if (!usuario) throw new Error("Ups, parece que no encontramos este usuario")
@@ -165,9 +253,7 @@ class UsuarioController {
     }
 
     async userHasCompletedSignup(req = request, res = response, next) {
-
         try {
-
             const authHeader = req.header("Authorization")
 
             if (!authHeader) throw new Error({ mensaje: "¡Ups! Parece que no tienes una sesión activa" })
@@ -186,12 +272,10 @@ class UsuarioController {
                 mensaje: error.message
             })
         }
-
     }
+
     async completeSignup(req = request, res = response, next) {
-
         try {
-
             const authHeader = req.header("Authorization")
 
             if (!authHeader) throw new Error({ mensaje: "¡Ups! Parece que no tienes una sesión activa" })
@@ -201,7 +285,6 @@ class UsuarioController {
             const { email } = jwt.decode(token);
             const usuario = await Usuario.findOne({ where: { email } })
 
-
             const cliente = await Cliente.create({ usuarioID: usuario.id, ...req.body })
 
             return res.json({ mensaje: "Cliente creado correctamente", cliente });
@@ -210,7 +293,6 @@ class UsuarioController {
                 mensaje: error.message
             })
         }
-
     }
 
     async updatePassword(req = request, res = response) {
@@ -234,4 +316,4 @@ class UsuarioController {
     }
 }
 
-export const usuarioController = new UsuarioController()
+export const usuarioController = new UsuarioController();
