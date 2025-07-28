@@ -24,61 +24,75 @@ import { customAlphabet } from "nanoid";
    ╚════════════════════════════════════════════════════════╝ */
 class BarberosController {
   /* ─────── LISTAR (paginado y búsqueda) ─────── */
-  async get(req = request, res = response) {
-    try {
-      /* filtros.obtenerFiltros entrega offset / limit por página    */
-      const { offset, limit: defaultLimit, where } = filtros.obtenerFiltros({
-        busqueda: req.query.search,
-        modelo: Barbero,
-        pagina:   req.query.page,
-        camposBusqueda: ["nombre", "cedula", "telefono"],
-      });
+async get(req = request, res = response) {
+  try {
+    const { offset, limit: defaultLimit, where } = filtros.obtenerFiltros({
+      busqueda: req.query.search,
+      modelo: Barbero,
+      pagina: req.query.page,
+      camposBusqueda: ["nombre", "cedula", "telefono"],
+    });
 
-      /* Si viene &limit=… en query, sobrescribe                     */
+    // Verificar si se solicita todos los registros sin paginación
+    const all = req.query.all === 'true';
+
+    let queryOptions = {
+      where,
+      attributes: [
+        "id",
+        "nombre",
+        "cedula",
+        "telefono",
+        "fecha_nacimiento",
+        "fecha_de_contratacion",
+        "avatar",
+        "usuarioID",
+        "createdAt",
+        "updatedAt",
+      ],
+      include: [
+        {
+          model: Usuario,
+          attributes: ["id", "email", "estaVerificado"],
+          include: [
+            {
+              model: Rol,
+              as: "rol",
+              attributes: ["id", "nombre", "avatar"],
+            },
+          ],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+    };
+
+    let barberos;
+    let total;
+
+    if (all) {
+      // Obtener todos los barberos sin paginación
+      barberos = await Barbero.findAll(queryOptions);
+      total = barberos.length;
+    } else {
+      // Aplicar paginación normal
       const limit = req.query.limit ? Number(req.query.limit) : defaultLimit;
-
-      const barberos = await Barbero.findAll({
+      barberos = await Barbero.findAll({
+        ...queryOptions,
         offset,
-        limit,             // ← nuevo
-        where,
-        attributes: [
-          "id",
-          "nombre",
-          "cedula",
-          "telefono",
-          "fecha_nacimiento",
-          "fecha_de_contratacion",
-          "avatar",
-          "usuarioID",
-          "createdAt",
-          "updatedAt",
-        ],
-        include: [
-          {
-            model: Usuario,
-            attributes: ["id", "email", "estaVerificado"],
-            include: [
-              {
-                model: Rol,
-                as: "rol",
-                attributes: ["id", "nombre", "avatar"],
-              },
-            ],
-          },
-        ],
-        order: [["createdAt", "DESC"]],
+        limit,
       });
-
-      const total = await Barbero.count({ where });
-      return res.json({ barberos, total });
-    } catch (err) {
-      console.error("BarberosController.get →", err);
-      return res.status(500).json({
-        mensaje: "Error interno del servidor al obtener barberos",
-        error: err.message,
-      });
+      total = await Barbero.count({ where });
     }
+
+    return res.json({ barberos, total });
+  } catch (err) {
+    console.error("BarberosController.get →", err);
+    return res.status(500).json({
+      mensaje: "Error interno del servidor al obtener barberos",
+      error: err.message,
+    });
   }
+}
 
   /* ─────── OBTENER POR ID ─────── */
   async getById(req = request, res = response) {
@@ -181,18 +195,23 @@ class BarberosController {
       const codigo = customAlphabet("0123456789", 6)();
       await CodigosVerificacion.create({ usuarioID: usuario.id, codigo });
 
+      // Generar link de verificación
+      const verificationLink = `${process.env.FRONTEND_URL}/verify-email?email=${encodeURIComponent(email)}&code=${codigo}`;
+
       await sendEmail({
         to: email,
-        subject: "Confirmación de identidad",
+        subject: "Confirmación de identidad - NY Barber",
         html: correos.envioCredenciales({
           codigo,
           email,
           password: plainPassword,
+          verificationLink, // Incluir el link en el correo
+          tipoUsuario: "barbero" // Para personalizar el mensaje
         }),
       });
 
       return res.status(201).json({
-        mensaje: "Barbero registrado correctamente",
+        mensaje: "Barbero registrado correctamente. Se ha enviado un email de verificación.",
         barbero: {
           ...barbero.toJSON(),
           usuario: {
@@ -210,7 +229,6 @@ class BarberosController {
       });
     }
   }
-
   /* ─────── ACTUALIZAR ─────── */
   async update(req = request, res = response) {
     try {

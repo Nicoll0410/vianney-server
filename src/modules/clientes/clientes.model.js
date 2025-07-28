@@ -22,7 +22,7 @@ Cliente.init({
         allowNull: false,
     },
     avatar: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT,
         allowNull: true,
     },
     usuarioID: {

@@ -38,8 +38,18 @@ export class Server {
     }
 
     middlewares() {
-        this.app.use(express.json())
-        this.app.use(cors())
+        // Configuración CORS más detallada
+        this.app.use(cors({
+            origin: ['http://localhost:8081', 'http://localhost:19006'],
+            methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+            allowedHeaders: ['Content-Type', 'Authorization'],
+            credentials: true
+        }));
+        
+        // Aumentar límites para peticiones grandes (imágenes en base64)
+        this.app.use(express.json({ limit: '10mb' }));
+        this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+        
         this.app.use(morgan('combined'));
         new Database()
     }
