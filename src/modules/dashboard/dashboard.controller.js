@@ -22,13 +22,17 @@ export class DashboardController {
                 "09": "Septiembre", "10": "Octubre", "11": "Noviembre", "12": "Diciembre"
             };
 
-            /* ── Ventas por mes ───────────────────────── */
+            /* ──────────────────────────────────────────── */
+            /* ── COMENTAR SECCIÓN DE VENTAS/COMPRAS ─────── */
+            /* ──────────────────────────────────────────── */
+            /*
+            // Ventas por mes (comentado)
             const ventasPorMesRaw = await Cita.findAll({
                 attributes: [
                     [Sequelize.fn("DATE_FORMAT", Sequelize.col("cita.fecha"), "%Y-%m"), "x"],
                     [Sequelize.fn("SUM", Sequelize.col("servicio.precio")), "y"],
                 ],
-                include: [{ model: Servicio, as: "servicio", attributes: [] }],   // ← as: "servicio"
+                include: [{ model: Servicio, as: "servicio", attributes: [] }],
                 where: {
                     estado: "Completa",
                     fecha: { [Op.between]: [subMonths(new Date(), 11), new Date()] },
@@ -37,7 +41,7 @@ export class DashboardController {
                 raw: true,
             });
 
-            /* ── Compras por mes ──────────────────────── */
+            // Compras por mes (comentado)
             const comprasPorMesRaw = await Compra.findAll({
                 attributes: [
                     [Sequelize.fn("DATE_FORMAT", Sequelize.col("compra.fecha"), "%Y-%m"), "x"],
@@ -51,7 +55,6 @@ export class DashboardController {
                 raw: true,
             });
 
-            /* ── Mapear a formato de frontend ─────────── */
             const toSerie = (raw, months) =>
                 months.map(m => {
                     const r = raw.find(i => i.x === m) || { y: 0 };
@@ -61,7 +64,6 @@ export class DashboardController {
             const ventasPorMes = toSerie(ventasPorMesRaw, monthsList);
             const comprasPorMes = toSerie(comprasPorMesRaw, monthsList);
 
-            /* ── Totales y variaciones ─────────────────── */
             const ventasThis = ventasPorMes.at(-1).y;
             const ventasPrev = ventasPorMes.at(-2).y;
             const comprasThis = comprasPorMes.at(-1).y;
@@ -72,54 +74,25 @@ export class DashboardController {
             const pct = (cur, prev) =>
                 prev === 0 ? (cur === 0 ? 0 : 100) : ((cur - prev) / Math.abs(prev)) * 100;
 
-            /* ── Ganancias últimos 4 meses ─────────────── */
             const gananciasPorMes = ventasPorMes.slice(-4).map((v, i) => ({
                 label: v.x,
                 id: v.x,
                 value: v.y - comprasPorMes.slice(-4)[i].y,
             }));
+            */
 
-            /* ── Top barberos ─────────────────────────── */
-            const topBarberos = await Cita.findAll({
-                attributes: [
-                    "barberoID",
-                    [Sequelize.fn("COUNT", Sequelize.col("cita.id")), "citas"],
-                ],
-                where: { estado: "Completa" },
-                include: [{ model: Barbero, as: "barbero", attributes: ["nombre", "avatar"] }], // ← as: "barbero"
-                group: ["barberoID", "barbero.id"],
-                order: [[Sequelize.literal("citas"), "DESC"]],
-                limit: 5,
-                raw: true,
-                nest: true,
-            });
-
-            /* ── Top servicios ────────────────────────── */
-            const topServicios = (
-                await Cita.findAll({
-                    attributes: [
-                        "servicioID",
-                        [Sequelize.fn("COUNT", Sequelize.col("cita.id")), "citas"],
-                    ],
-                    where: { estado: "Completa" },
-                    include: [{ model: Servicio, as: "servicio", attributes: ["nombre"] }], // ← as: "servicio"
-                    group: ["servicioID", "servicio.id"],
-                    order: [[Sequelize.literal("citas"), "DESC"]],
-                    limit: 8,
-                    raw: true,
-                    nest: true,
-                })
-            ).map(s => ({ value: s.citas, id: s.servicio.nombre, label: s.servicio.nombre }));
-
-            /* ── Horas con más citas ───────────────────── */
+            /* ── NUEVOS GRÁFICOS ──────────────────────── */
+            
+            // 1. Horas con más citas
             const topHoras = (
                 await Cita.findAll({
                     attributes: [
                         "hora",
                         [Sequelize.fn("COUNT", Sequelize.col("cita.hora")), "cantidad"],
                     ],
+                    where: { estado: "Completa" },
                     group: ["hora"],
-                    order: [["hora", "ASC"]],
+                    order: [[Sequelize.literal("cantidad"), "DESC"]],
                     limit: 6,
                     raw: true,
                 })
@@ -127,20 +100,51 @@ export class DashboardController {
                 const [hh, mm] = h.hora.split(":");
                 const hour = ((+hh + 11) % 12) + 1;
                 const ampm = +hh >= 12 ? "PM" : "AM";
-                return { value: h.cantidad, id: `${hour}:${mm} ${ampm}`, label: `${hour}:${mm} ${ampm}` };
+                return { 
+                    hora: h.hora,
+                    label: `${hour}:${mm} ${ampm}`, 
+                    value: h.cantidad 
+                };
             });
 
-            /* ── Tipos de usuarios ───────────────────────── */
+            // 2. Servicios más solicitados
+            const topServicios = (
+                await Cita.findAll({
+                    attributes: [
+                        "servicioID",
+                        [Sequelize.fn("COUNT", Sequelize.col("cita.id")), "cantidad"],
+                    ],
+                    where: { estado: "Completa" },
+                    include: [{ 
+                        model: Servicio, 
+                        as: "servicio", 
+                        attributes: ["nombre", "precio"] 
+                    }],
+                    group: ["servicioID", "servicio.id"],
+                    order: [[Sequelize.literal("cantidad"), "DESC"]],
+                    limit: 8,
+                    raw: true,
+                    nest: true,
+                })
+            ).map(s => ({ 
+                id: s.servicio.nombre,
+                label: s.servicio.nombre,
+                value: s.cantidad,
+                precio: s.servicio.precio
+            }));
+
+            // 3. Tipos de usuarios (Pie chart)
             const tiposDeUsuarios = (
                 await Usuario.findAll({
                     attributes: [
-                        [Sequelize.fn("COUNT", Sequelize.col("usuario.id")), "value"],
+                        [Sequelize.fn("COUNT", Sequelize.col("usuario.id")), "cantidad"],
                         "rolID",
                     ],
+                    where: { estaVerificado: true },
                     include: [
                         {
                             model: Rol,
-                            as: "rol",          // ← alias obligatorio
+                            as: "rol",
                             attributes: ["nombre"],
                         },
                     ],
@@ -149,32 +153,45 @@ export class DashboardController {
                     nest: true,
                 })
             ).map(r => ({
-                value: r.value,
                 id: r.rol.nombre,
                 label: r.rol.nombre,
+                value: r.cantidad,
+                color: this.getRandomColor()
             }));
 
+            // Calcular total de usuarios verificados
+            const totalUsuarios = tiposDeUsuarios.reduce((sum, item) => sum + item.value, 0);
 
-            /* ── Top proveedores ───────────────────────── */
-            const topProveedores = (
-                await Compra.findAll({
+            // 4. Top barberos (por citas atendidas)
+            const topBarberos = (
+                await Cita.findAll({
                     attributes: [
-                        "proveedorID",
-                        [Sequelize.fn("COUNT", Sequelize.col("compra.id")), "value"],
+                        "barberoID",
+                        [Sequelize.fn("COUNT", Sequelize.col("cita.id")), "citasAtendidas"],
                     ],
-                    include: [{ model: Proveedor, as: "proveedor", attributes: ["nombre"] }], // ← as: "proveedor"
-                    group: ["proveedorID", "proveedor.id"],
-                    order: [[Sequelize.literal("value"), "DESC"]],
-                    limit: 7,
+                    where: { estado: "Completa" },
+                    include: [{ 
+                        model: Barbero, 
+                        as: "barbero", 
+                        attributes: ["nombre", "avatar"] 
+                    }],
+                    group: ["barberoID", "barbero.id"],
+                    order: [[Sequelize.literal("citasAtendidas"), "DESC"]],
+                    limit: 5,
                     raw: true,
                     nest: true,
                 })
-            ).map(p => ({ value: p.value, id: p.proveedor.nombre, label: p.proveedor.nombre }));
-
-            const citasCompletadasTotales = await Cita.count({ where: { estado: "Completa" } });
+            ).map(b => ({
+                id: b.barbero.id,
+                nombre: b.barbero.nombre,
+                citas: b.citasAtendidas,
+                avatar: b.barbero.avatar
+            }));
 
             /* ── Respuesta ─────────────────────────────── */
             return res.json({
+                // Datos comentados (se pueden descomentar luego)
+                /*
                 ventasEsteMes: ventasThis,
                 comprasEsteMes: comprasThis,
                 profitEsteMes: profitThis,
@@ -184,18 +201,33 @@ export class DashboardController {
                 ventasChange: pct(ventasThis, ventasPrev),
                 comprasChange: pct(comprasThis, comprasPrev),
                 profitChange: pct(profitThis, profitPrev),
-                topBarberos,
-                topServicios,
+                */
+                
+                // Nuevos gráficos
                 topHoras,
+                topServicios,
                 tiposDeUsuarios,
-                topProveedores,
-                citasCompletadasTotales,
+                totalUsuarios,
+                topBarberos,
+                
+                // Mantener otros datos necesarios
+                citasCompletadasTotales: await Cita.count({ where: { estado: "Completa" } })
             });
         } catch (err) {
             console.error("💥 Dashboard error:", err);
             return res.status(500).json({ error: "Internal Server Error" });
         }
     };
+
+    // Función auxiliar para generar colores aleatorios
+    getRandomColor() {
+        const letters = '0123456789ABCDEF';
+        let color = '#';
+        for (let i = 0; i < 6; i++) {
+            color += letters[Math.floor(Math.random() * 16)];
+        }
+        return color;
+    }
 }
 
 export const dashboardController = new DashboardController();

@@ -10,6 +10,17 @@ barberosRouter.get('/', barberosController.get);
 /* ---------- obtener por ID ---------- */
 barberosRouter.get('/by-id/:id', barberosController.getById);
 
+// Agrega al final del archivo:
+
+/* ---------- obtener horario ---------- */
+barberosRouter.get('/:id/horario', barberosController.getHorario);
+
+/* ---------- actualizar horario ---------- */
+barberosRouter.put('/:id/horario', barberosController.updateHorario);
+
+/* ---------- añadir excepción ---------- */
+barberosRouter.post('/:id/horario/excepcion', barberosController.addExcepcion);
+
 /* ---------- crear ---------- */
 barberosRouter.post(
   '/',

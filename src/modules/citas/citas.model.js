@@ -67,6 +67,19 @@ Cita.init({
         }
     }
 });
+// Añadir método estático para verificar disponibilidad
+Cita.verificarDisponibilidad = async function(barberoID, fecha, hora) {
+  // Verificar si ya existe una cita en ese horario
+  const citaExistente = await this.findOne({
+    where: {
+      barberoID: barberoID,
+      fecha: fecha,
+      hora: hora
+    }
+  });
+  
+  return !citaExistente;
+};
 
 const task = cron.schedule('* * * * *', async () => {
     try {
