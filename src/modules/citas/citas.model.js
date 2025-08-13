@@ -13,7 +13,37 @@ Cita.init({
     },
     pacienteID: {
         type: DataTypes.UUID,
-        allowNull: false
+        allowNull: true,
+        references: {
+            model: 'clientes',
+            key: 'id'
+        },
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE'
+    },
+    pacienteTemporalNombre: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        validate: {
+            notEmpty: {
+                msg: "El nombre del cliente temporal no puede estar vacío",
+                args: true
+            },
+            len: {
+                args: [2, 50],
+                msg: "El nombre debe tener entre 2 y 50 caracteres"
+            }
+        }
+    },
+    pacienteTemporalTelefono: {
+        type: DataTypes.STRING(10),
+        allowNull: true,
+        validate: {
+            is: {
+                args: /^[0-9]{10}$/,
+                msg: "El teléfono debe tener 10 dígitos numéricos"
+            }
+        }
     },
     barberoID: {
         type: DataTypes.UUID,
@@ -67,6 +97,7 @@ Cita.init({
         }
     }
 });
+
 // Añadir método estático para verificar disponibilidad
 Cita.verificarDisponibilidad = async function(barberoID, fecha, hora) {
   // Verificar si ya existe una cita en ese horario
@@ -77,7 +108,7 @@ Cita.verificarDisponibilidad = async function(barberoID, fecha, hora) {
       hora: hora
     }
   });
-  
+
   return !citaExistente;
 };
 

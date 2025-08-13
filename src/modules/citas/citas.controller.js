@@ -72,7 +72,7 @@ async get(req = request, res = response) {
                     model: Cliente, 
                     as: 'cliente',
                     required: false, 
-                    attributes: ["nombre", "avatar"] 
+                    attributes: ["nombre", "avatar", "telefono"] 
                 },
                 { 
                     model: Barbero, 
@@ -156,7 +156,7 @@ async get(req = request, res = response) {
                         model: Cliente, 
                         as: 'cliente',
                         required: false, 
-                        attributes: ["nombre", "avatar"] 
+                        attributes: ["nombre", "avatar", "telefono"] 
                     },
                     { 
                         model: Barbero, 
@@ -230,7 +230,7 @@ async get(req = request, res = response) {
           { model: Servicio, as: 'servicio',
             required: false, attributes: ["nombre", "descripcion", "duracionMaxima"] },
           { model: Cliente,  as: 'cliente',
-            required: false, attributes: ["nombre", "avatar"] },
+            required: false, attributes: ["nombre", "avatar", "telefono"] },
           { model: Barbero,  as: 'barbero',
             required: false, attributes: ["nombre", "avatar"] },
         ],
@@ -305,7 +305,7 @@ async get(req = request, res = response) {
                         model: Cliente, 
                         as: 'cliente',
                         required: false, 
-                        attributes: ["nombre", "avatar"] 
+                        attributes: ["nombre", "avatar", "telefono"] 
                     },
                     { 
                         model: Barbero, 
@@ -371,42 +371,79 @@ async get(req = request, res = response) {
         }
     }
 
-    async create(req = request, res = response) {
-        try {
-            const { duracionMaxima } = await Servicio.findByPk(
-                req.body.servicioID,
-                { attributes: ["duracionMaxima"] }
-            );
-
-            const horaObj = parse(
-                req.body.hora.toUpperCase(),
-                "h:mm a",
-                new Date()
-            );
-
-            const [svcH, svcM, svcS] = duracionMaxima.split(":").map(Number);
-            const horaFinObj = add(horaObj, { hours: svcH, minutes: svcM, seconds: svcS });
-
-            const hora = format(horaObj, "HH:mm:ss");
-            const horaFin = format(horaFinObj, "HH:mm:ss");
-
-            const direccionDef = req.body.direccion || "En barbería";
-
-            const cita = await Cita.create({
-                ...req.body,
-                direccion: direccionDef,
-                hora,
-                horaFin,
-            });
-
-            return res.status(201).json({
-                mensaje: "Cita registrada correctamente",
-                cita,
-            });
-        } catch (error) {
-            return res.status(400).json({ mensaje: error.message });
+async create(req = request, res = response) {
+    try {
+        // Validaciones básicas en el controlador
+        const { servicioID, barberoID, fecha, hora, pacienteID, pacienteTemporalNombre } = req.body;
+        if (!servicioID) throw new Error("El id del servicio es obligatorio");
+        if (!barberoID) throw new Error("El id del barbero es obligatorio");
+        if (!fecha) throw new Error("La fecha es obligatoria");
+        if (!hora) throw new Error("La hora es obligatoria");
+        
+        // Validación modificada para clientes temporales
+        if (!pacienteID && !pacienteTemporalNombre) {
+            throw new Error("Debe indicar un paciente registrado o proporcionar nombre para cliente temporal");
         }
+
+        const { duracionMaxima } = await Servicio.findByPk(
+            servicioID,
+            { attributes: ["duracionMaxima"] }
+        );
+
+        if (!duracionMaxima) throw new Error("Servicio no encontrado");
+
+        const horaObj = parse(
+            hora.toUpperCase(),
+            "h:mm a",
+            new Date()
+        );
+
+        const [svcH, svcM, svcS] = duracionMaxima.split(":").map(Number);
+        const horaFinObj = add(horaObj, { hours: svcH, minutes: svcM, seconds: svcS });
+
+        const horaFormatted = format(horaObj, "HH:mm:ss");
+        const horaFin = format(horaFinObj, "HH:mm:ss");
+
+        const direccionDef = req.body.direccion || "En barbería";
+
+        // Build objeto a crear
+        const nuevo = {
+            servicioID,
+            barberoID,
+            fecha,
+            direccion: direccionDef,
+            hora: horaFormatted,
+            horaFin,
+        };
+
+        // Manejo de cliente (registrado o temporal)
+        if (pacienteID) {
+            // Verificar que el cliente exista si se proporciona ID
+            const clienteExiste = await Cliente.findByPk(pacienteID);
+            if (!clienteExiste) {
+                throw new Error("El cliente especificado no existe");
+            }
+            nuevo.pacienteID = pacienteID;
+        } else {
+            // Campos para cliente temporal
+            nuevo.pacienteTemporalNombre = pacienteTemporalNombre.trim();
+            nuevo.pacienteTemporalTelefono = req.body.pacienteTemporalTelefono?.trim() || null;
+        }
+
+        const cita = await Cita.create(nuevo);
+
+        return res.status(201).json({
+            mensaje: "Cita registrada correctamente",
+            cita,
+        });
+    } catch (error) {
+        console.error("Error al crear cita:", error);
+        return res.status(400).json({ 
+            mensaje: error.message,
+            error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
+}
 
     async createByPatient(req = request, res = response) {
         try {
@@ -459,7 +496,22 @@ async get(req = request, res = response) {
             const citaExiste = await Cita.findByPk(req.params.id);
             if (!citaExiste) throw new Error("Ups, parece que no encontramos esta cita");
 
-            const citaActualizada = await citaExiste.update(req.body);
+            // No obligamos pacienteID en update: se puede asignar pacienteID o datos temporales
+            const datos = { ...req.body };
+
+            // Si actualizaron hora -> recalcular horaFin si servicio cambió/esta presente
+            if (datos.hora && datos.servicioID) {
+                const { duracionMaxima } = await Servicio.findByPk(datos.servicioID, { attributes: ["duracionMaxima"] });
+                if (duracionMaxima) {
+                    const horaObj = parse(datos.hora.toUpperCase(), "h:mm a", new Date());
+                    const [svcH, svcM, svcS] = duracionMaxima.split(":").map(Number);
+                    const horaFinObj = add(horaObj, { hours: svcH, minutes: svcM, seconds: svcS });
+                    datos.hora = format(horaObj, "HH:mm:ss");
+                    datos.horaFin = format(horaFinObj, "HH:mm:ss");
+                }
+            }
+
+            const citaActualizada = await citaExiste.update(datos);
 
             return res.json({
                 mensaje: "Cita actualizada correctamente",
@@ -594,32 +646,44 @@ async get(req = request, res = response) {
 
             if (!cita) throw new Error("Ups, no encontramos esta cita");
 
-            const { email: emailUsuario } = await Usuario.findOne({
-                include: {
-                    model: Cliente,
-                    where: { id: cita.pacienteID },
-                    as: "cliente"
-                }
-            });
-            const { email: emailBarbero } = await Usuario.findOne({
+            // Si la cita tiene pacienteID, intentamos obtener email del usuario asociado al cliente.
+            let emailUsuario = null;
+            if (cita.pacienteID) {
+                const usuarioPaciente = await Usuario.findOne({
+                    include: {
+                        model: Cliente,
+                        where: { id: cita.pacienteID },
+                        as: "cliente"
+                    }
+                });
+                if (usuarioPaciente) emailUsuario = usuarioPaciente.email;
+            }
+
+            const usuarioBarbero = await Usuario.findOne({
                 include: {
                     model: Barbero,
                     where: { id: cita.barberoID }
                 }
             });
+            const emailBarbero = usuarioBarbero?.email || null;
 
             await cita.update({ estado: "Cancelada" });
 
-            await sendEmail({
-                to: emailUsuario,
-                subject: "Cancelación de cita",
-                html: correos.citaCancelada({ fecha: cita.fecha, hora: cita.hora, razon: req.body.razon })
-            });
-            await sendEmail({
-                to: emailBarbero,
-                subject: "Cancelación de cita",
-                html: correos.citaCancelada({ fecha: cita.fecha, hora: cita.hora, razon: req.body.razon })
-            });
+            if (emailUsuario) {
+                await sendEmail({
+                    to: emailUsuario,
+                    subject: "Cancelación de cita",
+                    html: correos.citaCancelada({ fecha: cita.fecha, hora: cita.hora, razon: req.body.razon })
+                });
+            }
+
+            if (emailBarbero) {
+                await sendEmail({
+                    to: emailBarbero,
+                    subject: "Cancelación de cita",
+                    html: correos.citaCancelada({ fecha: cita.fecha, hora: cita.hora, razon: req.body.razon })
+                });
+            }
 
             return res.json({
                 mensaje: "Cita cancelada correctamente"
@@ -743,8 +807,8 @@ async get(req = request, res = response) {
                     },
                     cliente: {
                         id: cita.cliente?.id || null,
-                        nombre: cita.cliente?.nombre || "",
-                        telefono: cita.cliente?.telefono || "",
+                        nombre: cita.cliente?.nombre || cita.pacienteTemporalNombre || "",
+                        telefono: cita.cliente?.telefono || cita.pacienteTemporalTelefono || "",
                         email: cita.cliente?.usuario?.email || "",
                     },
                     estado: cita.estado,
