@@ -485,31 +485,40 @@ async create(req = request, res = response) {
         
         const horaFinFormatted = `${horaFin.getHours().toString().padStart(2, '0')}:${horaFin.getMinutes().toString().padStart(2, '0')}:00`;
 
-        // Verificar disponibilidad
+        // Verificar disponibilidad - LÓGICA CORREGIDA
         const citasSolapadas = await Cita.findAll({
             where: {
                 barberoID: req.body.barberoID,
                 fecha: req.body.fecha,
-                [Op.or]: [
-                    { 
-                        [Op.and]: [
-                            { hora: { [Op.lte]: hora } },
-                            { horaFin: { [Op.gte]: horaFinFormatted } }
-                        ]
-                    },
-                    {
-                        hora: { [Op.between]: [hora, horaFinFormatted] }
-                    },
-                    {
-                        horaFin: { [Op.between]: [hora, horaFinFormatted] }
-                    }
-                ],
                 estado: { [Op.notIn]: ["Cancelada", "Expirada"] },
             },
             transaction: t
         });
 
-        if (citasSolapadas.length > 0) {
+        // Convertir a minutos para comparación
+        const [horaH, horaM] = hora.split(':').map(Number);
+        const horaFinH = horaFin.getHours();
+        const horaFinM = horaFin.getMinutes();
+        
+        const inicioMinutos = horaH * 60 + horaM;
+        const finMinutos = horaFinH * 60 + horaFinM;
+
+        const tieneConflicto = citasSolapadas.some(cita => {
+            const [citaHoraH, citaHoraM] = cita.hora.split(':').map(Number);
+            const [citaHoraFinH, citaHoraFinM] = cita.horaFin.split(':').map(Number);
+            
+            const citaInicioMin = citaHoraH * 60 + citaHoraM;
+            const citaFinMin = citaHoraFinH * 60 + citaHoraFinM;
+            
+            // Verificar si los rangos se solapan
+            return (
+                (inicioMinutos >= citaInicioMin && inicioMinutos < citaFinMin) || // Nueva cita empieza durante una existente
+                (finMinutos > citaInicioMin && finMinutos <= citaFinMin) || // Nueva cita termina durante una existente
+                (inicioMinutos <= citaInicioMin && finMinutos >= citaFinMin) // Nueva cita engloba una existente
+            );
+        });
+
+        if (tieneConflicto) {
             await t.rollback();
             return res.status(400).json({
                 mensaje: "El barbero ya tiene citas en ese horario",
@@ -592,7 +601,7 @@ async create(req = request, res = response) {
             error: process.env.NODE_ENV === "development" ? error.message : null,
         });
     }
-}   
+}
     async createByPatient(req = request, res = response) {
         try {
             const authHeader = req.header("Authorization");
