@@ -11,6 +11,7 @@ import { Usuario } from "./modules/usuarios/usuarios.model.js";
 import { CodigosVerificacion } from "./modules/usuarios/codigos_verificacion.model.js";
 import { CodigosRecuperarVerificacion } from "./modules/usuarios/codigos_recuperar_password.model.js";
 
+import { Notificacion } from "./modules/notifications/notifications.model.js"
 import { Cliente } from "./modules/clientes/clientes.model.js";
 import { Barbero } from "./modules/barberos/barberos.model.js";
 
@@ -81,6 +82,16 @@ DetalleCompra.belongsTo(Insumo, {
   as: "insumo",
 });
 Insumo.hasMany(DetalleCompra, { foreignKey: "insumoID" });
+
+Notificacion.belongsTo(Usuario, { 
+  foreignKey: "usuarioID", 
+  onDelete: "CASCADE" 
+});
+Usuario.hasMany(Notificacion, { 
+  foreignKey: "usuarioID", 
+  as: "notificaciones",
+  onDelete: "CASCADE" 
+});
 
 /* SYNC */
 export async function syncAllModels() {
