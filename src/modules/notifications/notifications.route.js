@@ -6,19 +6,18 @@ const router = Router();
 // Guardar el token Expo de un usuario
 router.post("/save-token", NotificationsController.saveToken);
 
-// Enviar notificación push y guardar en BD
-router.post("/send", NotificationsController.sendNotification);
-
-// Obtener notificaciones del usuario actual (usando JWT)
+// Obtener notificaciones del usuario actual
 router.get("/", NotificationsController.getUserNotifications);
 
-// Obtener notificaciones de un usuario específico (admin)
-router.get("/:userId", NotificationsController.getUserNotificationsById);
-
-// Marcar notificación como leída
-router.put("/:id/read", NotificationsController.markAsRead);
+// Obtener conteo de notificaciones no leídas
+router.get("/unread-count", NotificationsController.getUnreadCount);
 
 // Marcar todas como leídas
 router.put("/mark-all-read", NotificationsController.markAllAsRead);
+
+// Enviar notificación push de prueba (solo desarrollo)
+if (process.env.NODE_ENV === "development") {
+    router.post("/send-test", NotificationsController.sendNotification);
+}
 
 export default router;
