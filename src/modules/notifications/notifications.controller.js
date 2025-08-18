@@ -41,6 +41,23 @@ class NotificationsController {
       });
     }
   }
+    async createNotification(userId, title, body, type, relatedId) {
+    try {
+      const notification = await Notificacion.create({
+        usuarioID: userId,
+        titulo: title,
+        cuerpo: body,
+        tipo: type,
+        relacionId: relatedId,
+        leido: false
+      });
+      
+      return notification;
+    } catch (error) {
+      console.error("Error creating notification:", error);
+      throw error;
+    }
+  }
 
   // Mejora el método createAppointmentNotification
   async createAppointmentNotification(citaId, tipo, options = {}) {
@@ -167,44 +184,57 @@ class NotificationsController {
   async getUserNotifications(req = request, res = response) {
     try {
       const { userId } = req.user;
-      const { limit = 20, offset = 0 } = req.query;
-
-      const { count, rows: notificaciones } =
-        await Notificacion.findAndCountAll({
-          where: { usuarioID: userId },
-          order: [["createdAt", "DESC"]],
-          limit: parseInt(limit),
-          offset: parseInt(offset),
-          include: [
-            {
-              model: Usuario,
-              as: "usuario",
-              attributes: ["id", "nombre", "email"],
-            },
-          ],
-        });
+      
+      const notifications = await Notificacion.findAll({
+        where: { usuarioID: userId },
+        order: [["createdAt", "DESC"]],
+        limit: 50
+      });
 
       const unreadCount = await Notificacion.count({
         where: {
           usuarioID: userId,
-          leido: false,
-        },
+          leido: false
+        }
       });
 
       return res.json({
         success: true,
         data: {
-          notificaciones,
-          total: count,
-          unreadCount,
-        },
+          notifications,
+          unreadCount
+        }
       });
     } catch (error) {
-      console.error("Error obteniendo notificaciones:", error);
+      console.error("Error getting notifications:", error);
       return res.status(500).json({
         success: false,
-        message: "Error en el servidor",
-        error: process.env.NODE_ENV === "development" ? error.message : null,
+        message: "Error al obtener notificaciones"
+      });
+    }
+  }
+
+
+  async getUnreadCount(req = request, res = response) {
+    try {
+      const { userId } = req.user;
+      
+      const count = await Notificacion.count({
+        where: {
+          usuarioID: userId,
+          leido: false
+        }
+      });
+
+      return res.json({
+        success: true,
+        count
+      });
+    } catch (error) {
+      console.error("Error getting unread count:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Error al obtener conteo de no leídas"
       });
     }
   }
@@ -212,50 +242,26 @@ class NotificationsController {
   async markAllAsRead(req = request, res = response) {
     try {
       const { userId } = req.user;
-
-      const [updatedCount] = await Notificacion.update(
+      
+      await Notificacion.update(
         { leido: true },
         {
           where: {
             usuarioID: userId,
-            leido: false,
-          },
+            leido: false
+          }
         }
       );
 
       return res.json({
         success: true,
-        message: `Se marcaron ${updatedCount} notificaciones como leídas`,
+        message: "Notificaciones marcadas como leídas"
       });
     } catch (error) {
-      console.error("Error marcando notificaciones como leídas:", error);
+      console.error("Error marking notifications as read:", error);
       return res.status(500).json({
         success: false,
-        message: "Error en el servidor",
-      });
-    }
-  }
-
-  async getUnreadCount(req = request, res = response) {
-    try {
-      const { userId } = req.user;
-
-      const count = await Notificacion.count({
-        where: {
-          usuarioID: userId,
-          leido: false,
-        },
-      });
-
-      return res.json({
-        success: true,
-        count,
-      });
-    } catch (error) {
-      console.error("Error obteniendo conteo de notificaciones:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Error en el servidor",
+        message: "Error al marcar notificaciones como leídas"
       });
     }
   }
