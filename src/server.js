@@ -19,7 +19,7 @@ import { dashboardRouter } from "./modules/dashboard/dashboard.route.js";
 import { publicRouter } from "./modules/public/public.route.js";
 import { Database } from "./database.js";
 import { syncAllModels } from "./syncAll.js";
-import notificationsRoutes from "./modules/notifications/notifications.route.js";
+import {notificationsRouter} from "./modules/notifications/notifications.route.js"; // Cambiado el nombre de la importación
 
 export class Server {
     constructor() {
@@ -27,7 +27,6 @@ export class Server {
         this.middlewares();
         this.routes();
 
-        // Espera sincronización antes de levantar el servidor
         syncAllModels()
             .then(() => {
                 this.app.listen(process.env.PORT, "0.0.0.0", () =>
@@ -42,7 +41,6 @@ export class Server {
     }
 
     middlewares() {
-        // Configuración CORS más detallada
         this.app.use(
             cors({
                 origin: ["http://localhost:8081", "http://localhost:19006"],
@@ -52,7 +50,6 @@ export class Server {
             })
         );
 
-        // Aumentar límites para peticiones grandes (imágenes en base64)
         this.app.use(express.json({ limit: "10mb" }));
         this.app.use(express.urlencoded({ extended: true, limit: "10mb" }));
         this.app.use(morgan("combined"));
@@ -73,7 +70,7 @@ export class Server {
         this.app.use("/movimientos", movimientosRouter);
         this.app.use("/usuarios", usuarioRouter);
         this.app.use("/servicios", serviciosRouter);
-        this.app.use("/api/notifications", notificationsRoutes);
+        this.app.use("/api/notifications", notificationsRouter); // Usando la importación correcta
         this.app.use("/barberos", barberosRouter);
         this.app.use("/clientes", clientesRouter);
         this.app.use("/compras", comprasRouter);

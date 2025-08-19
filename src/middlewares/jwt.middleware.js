@@ -1,22 +1,91 @@
-import { request, response } from "express";
-import { jwt } from "../utils/jwt.util.js";
+import jwt from 'jsonwebtoken';
+import { Usuario } from "../modules/usuarios/usuarios.model.js";
+import { Rol } from "../modules/roles/roles.model.js";
 
-
-class JWTMiddlewares {
-    verifyToken(req = request, res = response, next) {
-        const protectedRoutes = ['/proveedores', '/ventas', '/roles', '/citas', '/insumos', '/barberos', '/servicios', '/clientes', '/compras', '/usuarios', '/categorias-insumos', "/movimientos", "/dashboard"];
-        if (!protectedRoutes.find(route => req.path.startsWith(route))) return res.status(404).json({ mensaje: "¿Estás perdido? No pudimos encontrar este endpoint" });
-
-        const authHeader = req.header("Authorization")
-        if (!authHeader) return res.status(401).json({ mensaje: "¡Ups! Parece que no tienes una sesión activa" })
-        if (!authHeader.startsWith('Bearer ')) return res.status(401).json({ mensaje: "Formato del token invalido" })
-        const token = authHeader.split(' ')[1];
-
-        const esTokenValido = jwt.isTokenValid(token)
-        if (!esTokenValido) return res.status(401).json({ mensaje: "Token no válido" })
-
-        next()
+// Función para verificar el token
+export const verifyToken = async (req, res, next) => {
+    // Rutas que NO requieren autenticación
+    const publicRoutes = [
+        '/auth',  // Rutas de autenticación
+        '/public' // Cualquier otra ruta pública
+    ];
+    
+    // Si la ruta es pública, continuar sin verificar token
+    if (publicRoutes.some(route => req.path.startsWith(route))) {
+        return next();
     }
-}
 
-export const jwtMiddlewares = new JWTMiddlewares()
+    // Para TODAS las demás rutas (incluyendo /api/notifications), verificar token
+    const authHeader = req.header("Authorization");
+    if (!authHeader) {
+        return res.status(401).json({ mensaje: "¡Ups! Parece que no tienes una sesión activa" });
+    }
+    
+    if (!authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ mensaje: "Formato del token inválido" });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    
+    try {
+        // Verificar el token directamente con jwt.verify
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        if (!decoded) {
+            return res.status(401).json({ mensaje: "Token no válido" });
+        }
+
+        // Obtener el usuario completo de la base de datos
+        const usuario = await Usuario.findOne({
+            where: { email: decoded.email },
+            include: [{
+                model: Rol,
+                as: 'rol',
+                attributes: ['id', 'nombre']
+            }]
+        });
+
+        if (!usuario) {
+            return res.status(401).json({ mensaje: "Usuario no encontrado" });
+        }
+
+        // Añadir el usuario a la request
+        req.user = {
+            id: usuario.id,
+            email: usuario.email,
+            rol: {
+                id: usuario.rol.id,
+                nombre: usuario.rol.nombre
+            },
+            verificado: usuario.estaVerificado
+        };
+
+        next();
+    } catch (error) {
+        console.error('Error en middleware JWT:', error);
+        
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({ 
+                mensaje: 'Token expirado',
+                error: 'TOKEN_EXPIRED'
+            });
+        }
+        
+        if (error.name === 'JsonWebTokenError') {
+            return res.status(401).json({ 
+                mensaje: 'Token inválido',
+                error: 'INVALID_TOKEN'
+            });
+        }
+
+        return res.status(500).json({ 
+            mensaje: 'Error en el servidor',
+            error: process.env.NODE_ENV === 'development' ? error.message : null
+        });
+    }
+};
+
+// Objeto de middleware para compatibilidad
+export const jwtMiddlewares = {
+    verifyToken
+};

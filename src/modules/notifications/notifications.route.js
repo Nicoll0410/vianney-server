@@ -1,23 +1,20 @@
+// notifications.route.js - Actualizado
 import { Router } from "express";
 import NotificationsController from "./notifications.controller.js";
+import { verifyToken } from "../../middlewares/jwt.middleware.js";
 
-const router = Router();
+export const notificationsRouter = Router();
 
-// Guardar el token Expo de un usuario
-router.post("/save-token", NotificationsController.saveToken);
+// Aplicar middleware JWT a todas las rutas
+notificationsRouter.use(verifyToken);
 
-// Obtener notificaciones del usuario actual
-router.get("/", NotificationsController.getUserNotifications);
+// Actualizar rutas para mantener consistencia con el frontend
+notificationsRouter.get("/", NotificationsController.getUserNotifications);
+notificationsRouter.get("/count", NotificationsController.getUnreadCount); // Cambiado de /unread-count a /count
+notificationsRouter.post("/mark-read", NotificationsController.markAllAsRead); // Cambiado de PUT a POST
+notificationsRouter.post("/save-token", NotificationsController.saveToken);
 
-// Obtener conteo de notificaciones no leídas
-router.get("/unread-count", NotificationsController.getUnreadCount);
-
-// Marcar todas como leídas
-router.put("/mark-all-read", NotificationsController.markAllAsRead);
-
-// Enviar notificación push de prueba (solo desarrollo)
+// Ruta de prueba solo para desarrollo
 if (process.env.NODE_ENV === "development") {
-    router.post("/send-test", NotificationsController.sendNotification);
+  notificationsRouter.post("/test", NotificationsController.sendTestNotification);
 }
-
-export default router;
