@@ -7,7 +7,10 @@ export const verifyToken = async (req, res, next) => {
     // Rutas que NO requieren autenticación
     const publicRoutes = [
         '/auth',  // Rutas de autenticación
-        '/public' // Cualquier otra ruta pública
+        '/public', // Cualquier otra ruta pública
+        '/usuarios/solicitar-recuperacion',
+        '/usuarios/verificar-codigo',
+        '/usuarios/cambiar-password-codigo'
     ];
     
     // Si la ruta es pública, continuar sin verificar token

@@ -59,6 +59,7 @@ export class Server {
     routes() {
         this.app.use("/auth", authRouter);
         this.app.use("/public", publicRouter);
+        this.app.use("/usuarios", usuarioRouter);
         
         // Middleware de autenticación JWT para las rutas siguientes
         this.app.use(jwtMiddlewares.verifyToken);

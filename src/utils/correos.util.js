@@ -64,7 +64,6 @@ confirmarIdentidad({ codigo, email, verificationLink }) {
             <p style="margin:10px 0;">Hola,</p>
             <p style="margin:10px 0;">Utiliza este código en la app para restablecer tu contraseña:</p>
             <div style="text-align:center;margin:20px 0;font-size:24px;font-weight:bold;color:#333;">${codigo}</div>
-            <p style="margin:10px 0;">Si lo prefieres, haz clic en el siguiente enlace:</p>
             <p style="margin:10px 0;">Si no solicitaste esto, ignora el correo.</p>
             <p style="margin:10px 0;">Gracias,<br>El equipo de New York Barber</p>
           </td>
