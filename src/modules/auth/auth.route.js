@@ -20,6 +20,8 @@ authRouter.post("/signup", signupValidaciones(), (req, res) =>
   authController.signUp(req, res)
 );
 
+authRouter.get('/verify-from-email', authController.verifyFromEmail);
+
 /* ────── VERIFICAR CUENTA ───────── */
 authRouter.post(
   "/verify-account",

@@ -193,6 +193,54 @@ class AuthController {
     }
   }
 
+  async verifyFromEmail(req = request, res = response) {
+  try {
+    const { email, code } = req.query;
+
+    if (!email || !code) {
+      return res.redirect(`${process.env.FRONTEND_URL}/login?error=Parametros invalidos`);
+    }
+
+    const usuario = await Usuario.findOne({ where: { email } });
+    if (!usuario) {
+      return res.redirect(`${process.env.FRONTEND_URL}/login?error=Usuario no encontrado`);
+    }
+
+    if (usuario.estaVerificado) {
+      return res.redirect(`${process.env.FRONTEND_URL}/login?message=La cuenta ya está verificada`);
+    }
+
+    const registroCodigo = await CodigosVerificacion.findOne({
+      where: { usuarioID: usuario.id, codigo: code },
+    });
+
+    if (!registroCodigo) {
+      return res.redirect(`${process.env.FRONTEND_URL}/verify-email?email=${encodeURIComponent(email)}&error=Codigo invalido`);
+    }
+
+    // Verificar si el código ha expirado (24 horas)
+    const ahora = new Date();
+    const creadoEl = registroCodigo.createdAt;
+    const diferenciaHoras = (ahora - creadoEl) / (1000 * 60 * 60);
+    
+    if (diferenciaHoras > 24) {
+      await registroCodigo.destroy();
+      return res.redirect(`${process.env.FRONTEND_URL}/verify-email?email=${encodeURIComponent(email)}&error=Codigo expirado`);
+    }
+
+    // Verificar la cuenta
+    await usuario.update({ estaVerificado: true });
+    await registroCodigo.destroy();
+
+    // Redirigir a la pantalla de verificación con parámetros de éxito
+    return res.redirect(`${process.env.FRONTEND_URL}/verify-email?email=${encodeURIComponent(email)}&success=true&verified=true`);
+
+  } catch (error) {
+    console.error("Error en verifyFromEmail:", error);
+    return res.redirect(`${process.env.FRONTEND_URL}/login?error=Error en verificacion`);
+  }
+}
+
 
   async resendVerificationCode(req = request, res = response) {
   try {
@@ -234,6 +282,7 @@ class AuthController {
   }
 }
 
+// Modificar el método verifyAccount existente
 async verifyAccount(req = request, res = response) {
   try {
     const { email, codigo } = req.body;
@@ -254,13 +303,26 @@ async verifyAccount(req = request, res = response) {
     }
 
     const registroCodigo = await CodigosVerificacion.findOne({
-      where: { usuarioID: usuario.id },
+      where: { usuarioID: usuario.id, codigo },
     });
     
-    if (!registroCodigo || registroCodigo.codigo !== codigo) {
+    if (!registroCodigo) {
       return res.status(400).json({ 
         success: false, 
         mensaje: "Código incorrecto" 
+      });
+    }
+
+    // Verificar expiración (24 horas)
+    const ahora = new Date();
+    const creadoEl = registroCodigo.createdAt;
+    const diferenciaHoras = (ahora - creadoEl) / (1000 * 60 * 60);
+    
+    if (diferenciaHoras > 24) {
+      await registroCodigo.destroy();
+      return res.status(400).json({ 
+        success: false, 
+        mensaje: "Código expirado. Por favor solicita uno nuevo." 
       });
     }
 
@@ -270,7 +332,6 @@ async verifyAccount(req = request, res = response) {
     return res.json({
       success: true,
       mensaje: "Cuenta verificada correctamente",
-      // No enviamos token aquí, el usuario debe iniciar sesión manualmente
     });
 
   } catch (error) {
