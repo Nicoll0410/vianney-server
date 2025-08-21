@@ -22,6 +22,15 @@ export const Notificacion = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: false,
     },
+    tipo: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: "sistema", // valor por defecto
+    },
+    relacionId: {
+      type: DataTypes.UUID,
+      allowNull: true, // porque a veces no tendrá relación
+    },
     leido: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
@@ -39,7 +48,3 @@ export const Notificacion = sequelize.define(
     tableName: "notificaciones",
   }
 );
-
-// Relación con usuarios
-Usuario.hasMany(Notificacion, { foreignKey: "usuarioID" });
-Notificacion.belongsTo(Usuario, { foreignKey: "usuarioID" });
