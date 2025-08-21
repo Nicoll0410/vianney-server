@@ -94,6 +94,45 @@ class BarberosController {
         }
     }
 
+    async getUsuarioByBarberoId(req = request, res = response) {
+    try {
+        const { id } = req.params;
+        
+        const barbero = await Barbero.findByPk(id, {
+            include: [{
+                model: Usuario,
+                attributes: ["id", "email", "estaVerificado"]
+            }]
+        });
+
+        if (!barbero) {
+            return res.status(404).json({ 
+                success: false, 
+                message: "Barbero no encontrado" 
+            });
+        }
+
+        if (!barbero.usuario) {
+            return res.status(404).json({ 
+                success: false, 
+                message: "Usuario no encontrado para este barbero" 
+            });
+        }
+
+        return res.json({ 
+            success: true, 
+            usuarioID: barbero.usuario.id 
+        });
+    } catch (err) {
+        console.error("BarberosController.getUsuarioByBarberoId →", err);
+        return res.status(500).json({
+            success: false,
+            message: "Error interno del servidor",
+            error: err.message,
+        });
+    }
+}
+
     /* ─────── OBTENER HORARIO BARBERO ─────── */
 // Método getHorario (sin cambios necesarios)
 async getHorario(req, res) {

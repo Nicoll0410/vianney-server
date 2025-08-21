@@ -282,6 +282,50 @@ class AuthController {
   }
 }
 
+async getUserInfo(req = request, res = response) {
+  try {
+    console.log("Obteniendo información del usuario, user:", req.user);
+    
+    // Verificar que req.user existe y tiene id
+    if (!req.user || !req.user.id) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Usuario no autenticado correctamente" 
+      });
+    }
+
+    const userId = req.user.id;
+    
+    const usuario = await Usuario.findByPk(userId, {
+      attributes: { exclude: ['password'] },
+      include: [{
+        model: Rol,
+        as: "rol",
+        attributes: ["id", "nombre"]
+      }]
+    });
+
+    if (!usuario) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Usuario no encontrado" 
+      });
+    }
+
+    return res.json({ 
+      success: true, 
+      user: usuario 
+    });
+  } catch (error) {
+    console.error("Error en getUserInfo:", error);
+    return res.status(500).json({ 
+      success: false, 
+      message: "Error interno del servidor",
+      error: process.env.NODE_ENV === "development" ? error.message : null
+    });
+  }
+}
+
 // Modificar el método verifyAccount existente
 async verifyAccount(req = request, res = response) {
   try {

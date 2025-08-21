@@ -12,6 +12,8 @@ barberosRouter.get('/by-id/:id', barberosController.getById);
 
 // Agrega al final del archivo:
 
+barberosRouter.get('/:id/usuario', barberosController.getUsuarioByBarberoId);
+
 /* ---------- obtener horario ---------- */
 barberosRouter.get('/:id/horario', barberosController.getHorario);
 

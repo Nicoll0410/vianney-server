@@ -19,7 +19,7 @@ import { dashboardRouter } from "./modules/dashboard/dashboard.route.js";
 import { publicRouter } from "./modules/public/public.route.js";
 import { Database } from "./database.js";
 import { syncAllModels } from "./syncAll.js";
-import {notificationsRouter} from "./modules/notifications/notifications.route.js"; // Cambiado el nombre de la importación
+import { notificationsRouter } from './modules/notifications/notifications.route.js';
 
 export class Server {
     constructor() {
@@ -71,7 +71,7 @@ export class Server {
         this.app.use("/movimientos", movimientosRouter);
         this.app.use("/usuarios", usuarioRouter);
         this.app.use("/servicios", serviciosRouter);
-        this.app.use("/api/notifications", notificationsRouter); // Usando la importación correcta
+        this.app.use('/notifications', notificationsRouter); // 👈 Esto es importante
         this.app.use("/barberos", barberosRouter);
         this.app.use("/clientes", clientesRouter);
         this.app.use("/compras", comprasRouter);

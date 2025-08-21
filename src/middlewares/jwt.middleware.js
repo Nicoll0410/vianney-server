@@ -38,15 +38,30 @@ export const verifyToken = async (req, res, next) => {
             return res.status(401).json({ mensaje: "Token no válido" });
         }
 
-        // Obtener el usuario completo de la base de datos
-        const usuario = await Usuario.findOne({
-            where: { email: decoded.email },
-            include: [{
-                model: Rol,
-                as: 'rol',
-                attributes: ['id', 'nombre']
-            }]
-        });
+        console.log('Token decodificado:', decoded);
+
+        // Buscar el usuario por email O por ID (para mayor compatibilidad)
+        let usuario;
+        if (decoded.email) {
+            usuario = await Usuario.findOne({
+                where: { email: decoded.email },
+                include: [{
+                    model: Rol,
+                    as: 'rol',
+                    attributes: ['id', 'nombre']
+                }]
+            });
+        } else if (decoded.userId || decoded.id) {
+            // Buscar por ID si no hay email pero sí userId/id en el token
+            usuario = await Usuario.findOne({
+                where: { id: decoded.userId || decoded.id },
+                include: [{
+                    model: Rol,
+                    as: 'rol',
+                    attributes: ['id', 'nombre']
+                }]
+            });
+        }
 
         if (!usuario) {
             return res.status(401).json({ mensaje: "Usuario no encontrado" });
@@ -62,6 +77,8 @@ export const verifyToken = async (req, res, next) => {
             },
             verificado: usuario.estaVerificado
         };
+
+        console.log('Usuario autenticado:', req.user);
 
         next();
     } catch (error) {
@@ -92,3 +109,6 @@ export const verifyToken = async (req, res, next) => {
 export const jwtMiddlewares = {
     verifyToken
 };
+
+// Exportar como default para compatibilidad
+export default { verifyToken };

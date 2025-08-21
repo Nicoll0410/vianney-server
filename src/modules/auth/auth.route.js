@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authController } from "./auth.controller.js";
 import { validaciones } from "../../middlewares/validaciones.middleware.js";
+import { verifyToken } from "../../middlewares/jwt.middleware.js"; // Asegúrate de importar correctamente
 
 export const authRouter = Router();
 
@@ -23,6 +24,9 @@ authRouter.post("/signup", signupValidaciones(), (req, res) =>
 authRouter.get('/verify-from-email', authController.verifyFromEmail);
 
 /* ────── VERIFICAR CUENTA ───────── */
+
+authRouter.get('/user-info', verifyToken, authController.getUserInfo);
+
 authRouter.post(
   "/verify-account",
   verifyAccountValidaciones(),

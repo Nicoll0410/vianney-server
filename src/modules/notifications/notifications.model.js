@@ -19,7 +19,7 @@ export const Notificacion = sequelize.define(
       allowNull: false,
     },
     cuerpo: {
-      type: DataTypes.STRING,
+      type: DataTypes.TEXT,
       allowNull: false,
     },
     leido: {
