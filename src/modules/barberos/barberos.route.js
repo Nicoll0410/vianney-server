@@ -23,6 +23,8 @@ barberosRouter.put('/:id/horario', barberosController.updateHorario);
 /* ---------- añadir excepción ---------- */
 barberosRouter.post('/:id/horario/excepcion', barberosController.addExcepcion);
 
+barberosRouter.post('/:id/reenviar-verificacion', barberosController.reenviarEmailVerificacion);
+
 /* ---------- crear ---------- */
 barberosRouter.post(
   '/',

@@ -133,6 +133,74 @@ class BarberosController {
     }
 }
 
+/* ─────── REENVIAR EMAIL DE VERIFICACIÓN ─────── */
+async reenviarEmailVerificacion(req = request, res = response) {
+    try {
+        const { id } = req.params;
+        
+        // Buscar el barbero por ID
+        const barbero = await Barbero.findByPk(id, {
+            include: [{
+                model: Usuario,
+                attributes: ["id", "email", "estaVerificado"]
+            }]
+        });
+
+        if (!barbero) {
+            return res.status(404).json({ mensaje: 'Barbero no encontrado' });
+        }
+
+        if (!barbero.usuario) {
+            return res.status(404).json({ mensaje: 'Usuario asociado no encontrado' });
+        }
+
+        if (barbero.usuario.estaVerificado) {
+            return res.status(400).json({ mensaje: 'El barbero ya está verificado' });
+        }
+
+        // Generar nuevo código de verificación
+        const codigo = customAlphabet("0123456789", 6)();
+        
+        // Eliminar códigos anteriores y crear uno nuevo
+        await CodigosVerificacion.destroy({
+            where: { usuarioID: barbero.usuario.id }
+        });
+        
+        await CodigosVerificacion.create({
+            usuarioID: barbero.usuario.id,
+            codigo,
+            expiracion: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 horas
+        });
+
+        // Generar link de verificación
+        const verificationLink = `${process.env.FRONTEND_URL}/verify-email?email=${encodeURIComponent(barbero.usuario.email)}&code=${codigo}`;
+
+        // Enviar email
+        await sendEmail({
+            to: barbero.usuario.email,
+            subject: "Reenvío de verificación - NY Barber",
+            html: correos.envioCredenciales({
+                codigo,
+                email: barbero.usuario.email,
+                password: "******", // No enviamos la contraseña en reenvíos
+                verificationLink,
+                tipoUsuario: "barbero"
+            }),
+        });
+
+        return res.json({ 
+            mensaje: 'Email de verificación reenviado correctamente' 
+        });
+
+    } catch (err) {
+        console.error("BarberosController.reenviarEmailVerificacion →", err);
+        return res.status(500).json({
+            mensaje: 'Error interno del servidor al reenviar email',
+            error: err.message,
+        });
+    }
+}
+
     /* ─────── OBTENER HORARIO BARBERO ─────── */
 // Método getHorario (sin cambios necesarios)
 async getHorario(req, res) {
