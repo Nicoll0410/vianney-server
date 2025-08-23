@@ -17,18 +17,17 @@ const FRONTEND_URL =
 
 
 class ClientesController {
-  /* ─────────────────────── LISTAR ─────────────────────── */
+
+/* ─────────────────────── LISTAR ─────────────────────── */
 async get(req = request, res = response) {
   try {
     const { offset, limit, where, order } = filtros.obtenerFiltros({
-      busqueda: req.query.search, // Usar query params, no body
+      busqueda: req.query.search,
       modelo: Cliente,
       pagina: req.query.page,
     });
 
-
     const all = req.query.all === 'true';
-
 
     let queryOptions = {
       where,
@@ -41,10 +40,8 @@ async get(req = request, res = response) {
       raw: false
     };
 
-
     let clientes;
     let total;
-
 
     if (all) {
       clientes = await Cliente.findAll(queryOptions);
@@ -55,22 +52,35 @@ async get(req = request, res = response) {
       total = await Cliente.count({ where });
     }
 
-
     const clientesProcesados = clientes.map(cliente => {
       const clienteData = cliente.get({ plain: true });
-        // Limpiar avatar si es inválido
-  let avatar = clienteData.avatar;
-  if (avatar && (typeof avatar !== 'string' || avatar.includes('undefined'))) {
-    avatar = null;
-  }
+      
+      // ✅ CORREGIR FECHA: Ajustar la fecha para compensar zona horaria
+      let fechaNacimientoCorregida = clienteData.fecha_nacimiento;
+      if (fechaNacimientoCorregida) {
+        try {
+          const fecha = new Date(fechaNacimientoCorregida);
+          // Añadir un día para compensar la conversión de zona horaria
+          fecha.setDate(fecha.getDate() + 1);
+          fechaNacimientoCorregida = fecha.toISOString().split('T')[0];
+        } catch (error) {
+          console.error('Error al procesar fecha:', error);
+        }
+      }
+
+      let avatar = clienteData.avatar;
+      if (avatar && (typeof avatar !== 'string' || avatar.includes('undefined'))) {
+        avatar = null;
+      }
+      
       return {
         ...clienteData,
-        avatar: clienteData.avatar || null,
+        fecha_nacimiento: fechaNacimientoCorregida, // ✅ Usar fecha corregida
+        avatar: avatar || null,
         estaVerificado: clienteData.usuario?.estaVerificado || false,
         email: clienteData.usuario?.email || ''
       };
     });
-
 
     return res.json({ clientes: clientesProcesados, total });
   } catch (error) {
@@ -80,47 +90,72 @@ async get(req = request, res = response) {
 }
 
 
-  /* ─────────────────────── DETALLE ────────────────────── */
-  async getById(req = request, res = response) {
-    try {
-      const cliente = await Cliente.findByPk(req.params.id, {
-        include: {
-          model: Usuario,
-          attributes: ["id", "email", "estaVerificado"],
-        },
-      });
+/* ─────────────────────── DETALLE ────────────────────── */
+async getById(req = request, res = response) {
+  try {
+    const cliente = await Cliente.findByPk(req.params.id, {
+      include: {
+        model: Usuario,
+        attributes: ["id", "email", "estaVerificado"],
+      },
+    });
 
-
-      if (!cliente) {
-        return res.status(404).json({ mensaje: "Cliente no encontrado" });
-      }
-
-
-      return res.json({ cliente });
-    } catch (error) {
-      return res.status(400).json({ mensaje: error.message });
+    if (!cliente) {
+      return res.status(404).json({ mensaje: "Cliente no encontrado" });
     }
+
+    const clienteData = cliente.get({ plain: true });
+    
+    // ✅ CORREGIR FECHA: Ajustar la fecha para compensar zona horaria
+    let fechaNacimientoCorregida = clienteData.fecha_nacimiento;
+    if (fechaNacimientoCorregida) {
+      try {
+        const fecha = new Date(fechaNacimientoCorregida);
+        fecha.setDate(fecha.getDate() + 1);
+        fechaNacimientoCorregida = fecha.toISOString().split('T')[0];
+      } catch (error) {
+        console.error('Error al procesar fecha:', error);
+      }
+    }
+
+    return res.json({ 
+      cliente: {
+        ...clienteData,
+        fecha_nacimiento: fechaNacimientoCorregida // ✅ Usar fecha corregida
+      } 
+    });
+  } catch (error) {
+    return res.status(400).json({ mensaje: error.message });
   }
+}
 
 
-  /* ─────────────────────── CREAR ──────────────────────── */
+/* ─────────────────────── CREAR ──────────────────────── */
 async create(req = request, res = response) {
   try {
     const { email, password: plainPassword, avatarBase64, fecha_nacimiento } = req.body;
 
-
-        // Validar fecha de nacimiento
+    // Validar fecha de nacimiento
     if (!fecha_nacimiento) {
       return res.status(400).json({ mensaje: "La fecha de nacimiento es obligatoria" });
     }
 
+    // ✅ NUEVO: Formatear fecha para evitar problemas de zona horaria
+    let fechaNacimientoFormateada;
+    try {
+      const fecha = new Date(fecha_nacimiento);
+      // Ajustar por zona horaria: añadir el offset para obtener la fecha correcta
+      fecha.setMinutes(fecha.getMinutes() + fecha.getTimezoneOffset());
+      fechaNacimientoFormateada = fecha.toISOString().split('T')[0];
+    } catch (error) {
+      return res.status(400).json({ mensaje: "Formato de fecha inválido" });
+    }
 
     // Validación extendida del avatar
     if (avatarBase64) {
       if (typeof avatarBase64 !== 'string') {
         return res.status(400).json({ mensaje: "Formato de avatar inválido" });
       }
-
 
       const cleanAvatar = avatarBase64.trim();
      
@@ -131,12 +166,10 @@ async create(req = request, res = response) {
         });
       }
 
-
       if (cleanAvatar.length > 8 * 1024 * 1024) {
         return res.status(400).json({ mensaje: "El avatar es demasiado grande (máximo 8MB)" });
       }
     }
-
 
     // Validar email duplicado
     const usuarioYaExiste = await Usuario.findOne({ where: { email } });
@@ -144,13 +177,11 @@ async create(req = request, res = response) {
       return res.status(400).json({ mensaje: "Este email ya se encuentra registrado" });
     }
 
-
     // Obtener rol Cliente
     const clienteRol = await Rol.findOne({ where: { nombre: "Cliente" } });
     if (!clienteRol) {
       return res.status(400).json({ mensaje: "No se encontró el rol de Cliente" });
     }
-
 
     // Crear usuario
     const password = await passwordUtils.encrypt(plainPassword);
@@ -160,31 +191,41 @@ async create(req = request, res = response) {
       rolID: clienteRol.id,
     });
 
-
     // Generar código de verificación
     const codigo = customAlphabet("0123456789", 6)();
     await CodigosVerificacion.create({ usuarioID: usuario.id, codigo });
 
-
-    // Crear cliente con el avatar (limpio si existe)
+    // Crear cliente con el avatar (limpio si existe) y fecha formateada
     const avatarClean = avatarBase64 ? avatarBase64.trim() : null;
     const cliente = await Cliente.create({
       ...req.body,
+      fecha_nacimiento: fechaNacimientoFormateada, // ✅ Usar fecha formateada
       usuarioID: usuario.id,
       avatar: avatarClean
     });
 
+    // Obtener el cliente recién creado
+    const clienteCreado = await Cliente.findByPk(cliente.id, {
+      attributes: ['id', 'nombre', 'telefono', 'avatar', 'usuarioID', 'fecha_nacimiento'],
+      include: {
+        model: Usuario,
+        attributes: ["id", "email", "estaVerificado"],
+      }
+    });
 
-    // Obtener el cliente recién creado con el avatar
-// Obtener el cliente recién creado con TODOS los atributos
-const clienteCreado = await Cliente.findByPk(cliente.id, {
-  attributes: ['id', 'nombre', 'telefono', 'avatar', 'usuarioID', 'fecha_nacimiento'],
-  include: {
-    model: Usuario,
-    attributes: ["id", "email", "estaVerificado"],
-  }
-});
-
+    const clienteCreadoData = clienteCreado.get({ plain: true });
+    
+    // ✅ NUEVO: Corregir fecha para la respuesta (compensar zona horaria)
+    let fechaNacimientoCorregida = clienteCreadoData.fecha_nacimiento;
+    if (fechaNacimientoCorregida) {
+      try {
+        const fecha = new Date(fechaNacimientoCorregida);
+        fecha.setDate(fecha.getDate() + 1);
+        fechaNacimientoCorregida = fecha.toISOString().split('T')[0];
+      } catch (error) {
+        console.error('Error al procesar fecha:', error);
+      }
+    }
 
     // Enviar email de verificación
     const verificationLink = `${FRONTEND_URL}/verify-email?email=${encodeURIComponent(email)}&code=${codigo}`;
@@ -199,10 +240,12 @@ const clienteCreado = await Cliente.findByPk(cliente.id, {
       }),
     });
 
-
     return res.status(201).json({
       mensaje: "Cliente registrado correctamente",
-      cliente: clienteCreado
+      cliente: {
+        ...clienteCreadoData,
+        fecha_nacimiento: fechaNacimientoCorregida // ✅ Fecha corregida para respuesta
+      }
     });
   } catch (error) {
     console.error('Error al crear cliente:', error);
@@ -214,8 +257,7 @@ const clienteCreado = await Cliente.findByPk(cliente.id, {
 }
 
 
-  /* ─────────────────────── ACTUALIZAR ─────────────────── */
-// En clientes.controller.js - método update
+/* ─────────────────────── ACTUALIZAR ─────────────────── */
 async update(req = request, res = response) {
   try {
     const cliente = await Cliente.findByPk(req.params.id, {
@@ -226,8 +268,21 @@ async update(req = request, res = response) {
       return res.status(404).json({ mensaje: "Cliente no encontrado" });
     }
 
+    // ✅ NUEVO: Manejo de la fecha de nacimiento
+    const { avatarBase64, fecha_nacimiento, ...rest } = req.body;
+    let fechaNacimientoFormateada = cliente.fecha_nacimiento;
+
+    if (fecha_nacimiento) {
+      try {
+        const fecha = new Date(fecha_nacimiento);
+        fecha.setMinutes(fecha.getMinutes() + fecha.getTimezoneOffset());
+        fechaNacimientoFormateada = fecha.toISOString().split('T')[0];
+      } catch (error) {
+        return res.status(400).json({ mensaje: "Formato de fecha inválido" });
+      }
+    }
+
     // Manejo del avatar - procesar avatarBase64 si existe
-    const { avatarBase64, ...rest } = req.body;
     let avatarActualizado = cliente.avatar;
 
     if (avatarBase64 && typeof avatarBase64 === 'string') {
@@ -243,9 +298,10 @@ async update(req = request, res = response) {
       }
     }
 
-    // Actualizar cliente incluyendo el avatar
+    // Actualizar cliente incluyendo el avatar y fecha formateada
     await cliente.update({
       ...rest,
+      fecha_nacimiento: fechaNacimientoFormateada, // ✅ Usar fecha formateada
       avatar: avatarActualizado
     });
    
@@ -263,9 +319,26 @@ async update(req = request, res = response) {
       }
     });
 
+    const clienteActualizadoData = clienteActualizado.get({ plain: true });
+    
+    // ✅ NUEVO: Corregir fecha para la respuesta (compensar zona horaria)
+    let fechaNacimientoCorregida = clienteActualizadoData.fecha_nacimiento;
+    if (fechaNacimientoCorregida) {
+      try {
+        const fecha = new Date(fechaNacimientoCorregida);
+        fecha.setDate(fecha.getDate() + 1);
+        fechaNacimientoCorregida = fecha.toISOString().split('T')[0];
+      } catch (error) {
+        console.error('Error al procesar fecha:', error);
+      }
+    }
+
     return res.json({
       mensaje: "Cliente actualizado correctamente",
-      cliente: clienteActualizado
+      cliente: {
+        ...clienteActualizadoData,
+        fecha_nacimiento: fechaNacimientoCorregida // ✅ Fecha corregida para respuesta
+      }
     });
   } catch (error) {
     console.error('Error al actualizar cliente:', error);

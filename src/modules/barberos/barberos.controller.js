@@ -19,6 +19,8 @@ import { correos } from "../../utils/correos.util.js";
 import { HorarioBarbero } from "./horarioBarbero.model.js";
 import { customAlphabet } from "nanoid";
 
+const FRONTEND_URL = process.env.FRONTEND_URL?.replace(/\/$/, "") || "http://localhost:19006";
+
 /* ╔════════════════════════════════════════════════════════╗
    ║                     CONTROLADOR                        ║
    ╚════════════════════════════════════════════════════════╝ */
@@ -88,7 +90,44 @@ class BarberosController {
         total = await Barbero.count({ where });
       }
 
-      return res.json({ barberos, total });
+      // ✅ CORREGIR FECHAS: Ajustar las fechas para compensar zona horaria
+      const barberosProcesados = barberos.map(barbero => {
+        const barberoData = barbero.get({ plain: true });
+        
+        // Procesar fecha de nacimiento
+        let fechaNacimientoCorregida = barberoData.fecha_nacimiento;
+        if (fechaNacimientoCorregida) {
+          try {
+            const fecha = new Date(fechaNacimientoCorregida);
+            // Añadir un día para compensar la conversión de zona horaria
+            fecha.setDate(fecha.getDate() + 1);
+            fechaNacimientoCorregida = fecha.toISOString().split('T')[0];
+          } catch (error) {
+            console.error('Error al procesar fecha de nacimiento:', error);
+          }
+        }
+
+        // Procesar fecha de contratación
+        let fechaContratacionCorregida = barberoData.fecha_de_contratacion;
+        if (fechaContratacionCorregida) {
+          try {
+            const fecha = new Date(fechaContratacionCorregida);
+            // Añadir un día para compensar la conversión de zona horaria
+            fecha.setDate(fecha.getDate() + 1);
+            fechaContratacionCorregida = fecha.toISOString().split('T')[0];
+          } catch (error) {
+            console.error('Error al procesar fecha de contratación:', error);
+          }
+        }
+
+        return {
+          ...barberoData,
+          fecha_nacimiento: fechaNacimientoCorregida, // ✅ Usar fecha corregida
+          fecha_de_contratacion: fechaContratacionCorregida // ✅ Usar fecha corregida
+        };
+      });
+
+      return res.json({ barberos: barberosProcesados, total });
     } catch (err) {
       console.error("BarberosController.get →", err);
       return res.status(500).json({
@@ -185,9 +224,7 @@ class BarberosController {
       });
 
       // Generar link de verificación
-      const verificationLink = `${
-        process.env.FRONTEND_URL
-      }/verify-email?email=${encodeURIComponent(
+      const verificationLink = `${FRONTEND_URL}/verify-email?email=${encodeURIComponent(
         barbero.usuario.email
       )}&code=${codigo}`;
 
@@ -453,10 +490,10 @@ class BarberosController {
       });
     }
   }
+  
   /* ─────── OBTENER POR ID ─────── */
   async getById(req = request, res = response) {
     try {
-      /* 👇  Igual: devolvemos cedula explícitamente                */
       const barbero = await Barbero.findByPk(req.params.id, {
         attributes: [
           "id",
@@ -484,7 +521,38 @@ class BarberosController {
       if (!barbero)
         return res.status(404).json({ mensaje: "Barbero no encontrado" });
 
-      return res.json({ barbero });
+      const barberoData = barbero.get({ plain: true });
+      
+      // ✅ CORREGIR FECHAS: Ajustar las fechas para compensar zona horaria
+      let fechaNacimientoCorregida = barberoData.fecha_nacimiento;
+      if (fechaNacimientoCorregida) {
+        try {
+          const fecha = new Date(fechaNacimientoCorregida);
+          fecha.setDate(fecha.getDate() + 1);
+          fechaNacimientoCorregida = fecha.toISOString().split('T')[0];
+        } catch (error) {
+          console.error('Error al procesar fecha de nacimiento:', error);
+        }
+      }
+
+      let fechaContratacionCorregida = barberoData.fecha_de_contratacion;
+      if (fechaContratacionCorregida) {
+        try {
+          const fecha = new Date(fechaContratacionCorregida);
+          fecha.setDate(fecha.getDate() + 1);
+          fechaContratacionCorregida = fecha.toISOString().split('T')[0];
+        } catch (error) {
+          console.error('Error al procesar fecha de contratación:', error);
+        }
+      }
+
+      return res.json({ 
+        barbero: {
+          ...barberoData,
+          fecha_nacimiento: fechaNacimientoCorregida, // ✅ Usar fecha corregida
+          fecha_de_contratacion: fechaContratacionCorregida // ✅ Usar fecha corregida
+        } 
+      });
     } catch (err) {
       console.error("BarberosController.getById →", err);
       return res.status(500).json({
@@ -526,6 +594,25 @@ class BarberosController {
           });
       }
 
+      // ✅ NUEVO: Formatear fechas para evitar problemas de zona horaria
+      let fechaNacimientoFormateada;
+      try {
+        const fecha = new Date(fecha_nacimiento);
+        fecha.setMinutes(fecha.getMinutes() + fecha.getTimezoneOffset());
+        fechaNacimientoFormateada = fecha.toISOString().split('T')[0];
+      } catch (error) {
+        return res.status(400).json({ mensaje: "Formato de fecha de nacimiento inválido" });
+      }
+
+      let fechaContratacionFormateada;
+      try {
+        const fecha = new Date(fecha_de_contratacion);
+        fecha.setMinutes(fecha.getMinutes() + fecha.getTimezoneOffset());
+        fechaContratacionFormateada = fecha.toISOString().split('T')[0];
+      } catch (error) {
+        return res.status(400).json({ mensaje: "Formato de fecha de contratación inválido" });
+      }
+
       /* ¿Email duplicado? */
       const emailDuplicado = await Usuario.findOne({ where: { email } });
       if (emailDuplicado)
@@ -546,20 +633,72 @@ class BarberosController {
         nombre,
         cedula,
         telefono,
-        fecha_nacimiento,
-        fecha_de_contratacion,
-        avatar: avatar || null, // Asegúrate de que el avatar se guarde correctamente
+        fecha_nacimiento: fechaNacimientoFormateada, // ✅ Usar fecha formateada
+        fecha_de_contratacion: fechaContratacionFormateada, // ✅ Usar fecha formateada
+        avatar: avatar || null,
         usuarioID: usuario.id,
       });
+
+      // Obtener el barbero recién creado
+      const barberoCreado = await Barbero.findByPk(barbero.id, {
+        attributes: [
+          "id",
+          "nombre",
+          "cedula",
+          "telefono",
+          "fecha_nacimiento",
+          "fecha_de_contratacion",
+          "avatar",
+          "usuarioID",
+          "createdAt",
+          "updatedAt",
+        ],
+        include: [
+          {
+            model: Usuario,
+            attributes: ["id", "email", "estaVerificado"],
+            include: [
+              {
+                model: Rol,
+                as: "rol",
+                attributes: ["id", "nombre", "avatar"],
+              },
+            ],
+          },
+        ],
+      });
+
+      const barberoCreadoData = barberoCreado.get({ plain: true });
+      
+      // ✅ CORREGIR FECHAS: Ajustar las fechas para compensar zona horaria en la respuesta
+      let fechaNacimientoCorregida = barberoCreadoData.fecha_nacimiento;
+      if (fechaNacimientoCorregida) {
+        try {
+          const fecha = new Date(fechaNacimientoCorregida);
+          fecha.setDate(fecha.getDate() + 1);
+          fechaNacimientoCorregida = fecha.toISOString().split('T')[0];
+        } catch (error) {
+          console.error('Error al procesar fecha de nacimiento:', error);
+        }
+      }
+
+      let fechaContratacionCorregida = barberoCreadoData.fecha_de_contratacion;
+      if (fechaContratacionCorregida) {
+        try {
+          const fecha = new Date(fechaContratacionCorregida);
+          fecha.setDate(fecha.getDate() + 1);
+          fechaContratacionCorregida = fecha.toISOString().split('T')[0];
+        } catch (error) {
+          console.error('Error al procesar fecha de contratación:', error);
+        }
+      }
 
       /* Código + correo verificación */
       const codigo = customAlphabet("0123456789", 6)();
       await CodigosVerificacion.create({ usuarioID: usuario.id, codigo });
 
       // Generar link de verificación
-      const verificationLink = `${
-        process.env.FRONTEND_URL
-      }/verify-email?email=${encodeURIComponent(email)}&code=${codigo}`;
+      const verificationLink = `${FRONTEND_URL}/verify-email?email=${encodeURIComponent(email)}&code=${codigo}`;
 
       await sendEmail({
         to: email,
@@ -568,8 +707,8 @@ class BarberosController {
           codigo,
           email,
           password: plainPassword,
-          verificationLink, // Incluir el link en el correo
-          tipoUsuario: "barbero", // Para personalizar el mensaje
+          verificationLink,
+          tipoUsuario: "barbero",
         }),
       });
 
@@ -577,7 +716,9 @@ class BarberosController {
         mensaje:
           "Barbero registrado correctamente. Se ha enviado un email de verificación.",
         barbero: {
-          ...barbero.toJSON(),
+          ...barberoCreadoData,
+          fecha_nacimiento: fechaNacimientoCorregida, // ✅ Usar fecha corregida
+          fecha_de_contratacion: fechaContratacionCorregida, // ✅ Usar fecha corregida
           usuario: {
             email: usuario.email,
             estaVerificado: usuario.estaVerificado,
@@ -593,6 +734,7 @@ class BarberosController {
       });
     }
   }
+
   /* ─────── ACTUALIZAR ─────── */
   async update(req = request, res = response) {
     try {
@@ -608,7 +750,30 @@ class BarberosController {
           .status(404)
           .json({ mensaje: "Usuario asociado no encontrado" });
 
-      /* rolID (opcional) */
+      // ✅ NUEVO: Manejo de las fechas
+      let fechaNacimientoFormateada = barbero.fecha_nacimiento;
+      if (req.body.fecha_nacimiento) {
+        try {
+          const fecha = new Date(req.body.fecha_nacimiento);
+          fecha.setMinutes(fecha.getMinutes() + fecha.getTimezoneOffset());
+          fechaNacimientoFormateada = fecha.toISOString().split('T')[0];
+        } catch (error) {
+          return res.status(400).json({ mensaje: "Formato de fecha de nacimiento inválido" });
+        }
+      }
+
+      let fechaContratacionFormateada = barbero.fecha_de_contratacion;
+      if (req.body.fecha_de_contratacion) {
+        try {
+          const fecha = new Date(req.body.fecha_de_contratacion);
+          fecha.setMinutes(fecha.getMinutes() + fecha.getTimezoneOffset());
+          fechaContratacionFormateada = fecha.toISOString().split('T')[0];
+        } catch (error) {
+          return res.status(400).json({ mensaje: "Formato de fecha de contratación inválido" });
+        }
+      }
+
+      /* rolID (opcional) */
       if (req.body.rolID) {
         const rolCheck = await Rol.findByPk(req.body.rolID);
         if (!rolCheck)
@@ -635,16 +800,71 @@ class BarberosController {
         nombre: req.body.nombre ?? barbero.nombre,
         cedula: req.body.cedula ?? barbero.cedula,
         telefono: req.body.telefono ?? barbero.telefono,
-        fecha_nacimiento: req.body.fecha_nacimiento ?? barbero.fecha_nacimiento,
-        fecha_de_contratacion:
-          req.body.fecha_de_contratacion ?? barbero.fecha_de_contratacion,
+        fecha_nacimiento: fechaNacimientoFormateada, // ✅ Usar fecha formateada
+        fecha_de_contratacion: fechaContratacionFormateada, // ✅ Usar fecha formateada
         avatar: req.body.avatar ?? barbero.avatar,
       });
+
+      // Obtener el barbero actualizado
+      const barberoActualizado = await Barbero.findByPk(req.params.id, {
+        attributes: [
+          "id",
+          "nombre",
+          "cedula",
+          "telefono",
+          "fecha_nacimiento",
+          "fecha_de_contratacion",
+          "avatar",
+          "usuarioID",
+          "createdAt",
+          "updatedAt",
+        ],
+        include: [
+          {
+            model: Usuario,
+            attributes: ["id", "email", "estaVerificado"],
+            include: [
+              {
+                model: Rol,
+                as: "rol",
+                attributes: ["id", "nombre", "avatar"],
+              },
+            ],
+          },
+        ],
+      });
+
+      const barberoActualizadoData = barberoActualizado.get({ plain: true });
+      
+      // ✅ CORREGIR FECHAS: Ajustar las fechas para compensar zona horaria en la respuesta
+      let fechaNacimientoCorregida = barberoActualizadoData.fecha_nacimiento;
+      if (fechaNacimientoCorregida) {
+        try {
+          const fecha = new Date(fechaNacimientoCorregida);
+          fecha.setDate(fecha.getDate() + 1);
+          fechaNacimientoCorregida = fecha.toISOString().split('T')[0];
+        } catch (error) {
+          console.error('Error al procesar fecha de nacimiento:', error);
+        }
+      }
+
+      let fechaContratacionCorregida = barberoActualizadoData.fecha_de_contratacion;
+      if (fechaContratacionCorregida) {
+        try {
+          const fecha = new Date(fechaContratacionCorregida);
+          fecha.setDate(fecha.getDate() + 1);
+          fechaContratacionCorregida = fecha.toISOString().split('T')[0];
+        } catch (error) {
+          console.error('Error al procesar fecha de contratación:', error);
+        }
+      }
 
       return res.json({
         mensaje: "Barbero actualizado correctamente",
         barbero: {
-          ...barbero.toJSON(),
+          ...barberoActualizadoData,
+          fecha_nacimiento: fechaNacimientoCorregida, // ✅ Usar fecha corregida
+          fecha_de_contratacion: fechaContratacionCorregida, // ✅ Usar fecha corregida
           usuario: {
             email: usuario.email,
             estaVerificado: usuario.estaVerificado,
