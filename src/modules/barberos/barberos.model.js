@@ -17,7 +17,7 @@ Barbero.init({
         allowNull: false,
     },
     avatar: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT('long'),
         allowNull: true,
     },
     cedula: {
