@@ -84,9 +84,9 @@ Cita.init(
       allowNull: false,
     },
     estado: {
-      type: DataTypes.ENUM("Cancelada", "Expirada", "Completa", "Pendiente"),
+      type: DataTypes.ENUM("Cancelada", "Expirada", "Completa", "Pendiente", "Confirmada"),
       allowNull: false,
-      defaultValue: "Pendiente",
+      defaultValue: "Confirmada", // Este debe coincidir con el ENUM
     },
   },
   {
@@ -96,7 +96,7 @@ Cita.init(
     hooks: {
       beforeValidate: (cita) => {
         if (cita.isNewRecord) {
-          cita.estado = "Pendiente";
+          cita.estado = "Confirmada";
         }
 
         const fecha = new Date(`${cita.fecha}T00:00:00-05:00`);
@@ -150,30 +150,46 @@ Cita.verificarDisponibilidad = async function (barberoID, fecha, hora, duracionM
 
 // Tarea programada para expirar citas pendientes antiguas
 const task = cron.schedule(
-  "* * * * *",
+  "* * * * *", // Ejecutar cada minuto
   async () => {
     try {
-      const threeDaysAgo = format(sub(new Date(), { days: 3 }), "yyyy-MM-dd");
-      const citasPendientes = await Cita.findAll({
+      const ahora = new Date();
+      const fechaActual = format(ahora, "yyyy-MM-dd");
+      const horaActual = format(ahora, "HH:mm:ss");
+
+      // Buscar citas confirmadas que ya pasaron su hora
+      const citasParaCompletar = await Cita.findAll({
         where: {
-          estado: "Pendiente",
-          fecha: {
-            [Op.lte]: threeDaysAgo,
-          },
+          estado: "Confirmada",
+          [Op.or]: [
+            {
+              fecha: {
+                [Op.lt]: fechaActual,
+              },
+            },
+            {
+              [Op.and]: [
+                { fecha: fechaActual },
+                { horaFin: { [Op.lte]: horaActual } },
+              ],
+            },
+          ],
         },
       });
 
-      if (citasPendientes.length > 0) {
+      if (citasParaCompletar.length > 0) {
         await Cita.update(
-          { estado: "Expirada" },
+          { estado: "Completa" },
           {
             where: {
               id: {
-                [Op.in]: citasPendientes.map((c) => c.id),
+                [Op.in]: citasParaCompletar.map((c) => c.id),
               },
             },
           }
         );
+        
+        console.log(`Se completaron ${citasParaCompletar.length} citas automáticamente`);
       }
     } catch (error) {
       console.error("Error en tarea programada de citas:", error);

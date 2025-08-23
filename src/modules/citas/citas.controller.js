@@ -82,7 +82,10 @@ class CitasController {
 
       const queryOptions = {
         order: [["fecha", "DESC"]],
-        where: { [Op.or]: whereConditions },
+              where: { 
+                [Op.or]: whereConditions,
+                  estado: { [Op.in]: ["Pendiente", "Confirmada", "Completa", "Expirada", "Cancelada"] }
+              },
         include: [
           {
             model: Servicio,
@@ -610,7 +613,7 @@ class CitasController {
         )
           .toString()
           .padStart(2, "0")}:00`,
-        estado: "Pendiente",
+        estado: "Confirmada",
         direccion: req.body.direccion || "En barbería",
       };
 
@@ -879,81 +882,53 @@ if (barbero.usuario) {
     }
   }
 
-  async cancelDate(req = request, res = response) {
-    try {
-      const { id } = req.params;
-      const cita = await Cita.findByPk(id);
-      if (!cita) throw new Error("Ups, no encontramos esta cita");
+ async cancelDate(req = request, res = response) {
+  const t = await sequelize.transaction();
+  try {
+    const { id } = req.params;
+    const cita = await Cita.findByPk(id, { transaction: t });
+    
+    if (!cita) {
+      await t.rollback();
+      return res.status(404).json({ mensaje: "Cita no encontrada" });
+    }
 
-      // Si la cita tiene pacienteID, intentamos obtener email del usuario asociado al cliente.
-      let emailUsuario = null;
-      if (cita.pacienteID) {
-        const usuarioPaciente = await Usuario.findOne({
-          include: {
-            model: Cliente,
-            where: { id: cita.pacienteID },
-            as: "cliente",
-          },
-        });
-        if (usuarioPaciente) emailUsuario = usuarioPaciente.email;
-      }
-
-      const usuarioBarbero = await Usuario.findOne({
-        include: {
-          model: Barbero,
-          where: { id: cita.barberoID },
-        },
-      });
-      const emailBarbero = usuarioBarbero?.email || null;
-
-      await cita.update({ estado: "Cancelada" });
-
-      // Enviar notificación
-      try {
-        await notificationsController.createAppointmentNotification(
-          id,
-          "cancelacion"
-        );
-      } catch (notifError) {
-        console.error(
-          "Error al crear notificación de cancelación:",
-          notifError
-        );
-      }
-
-      if (emailUsuario) {
-        await sendEmail({
-          to: emailUsuario,
-          subject: "Cancelación de cita",
-          html: correos.citaCancelada({
-            fecha: cita.fecha,
-            hora: cita.hora,
-            razon: req.body.razon,
-          }),
-        });
-      }
-
-      if (emailBarbero) {
-        await sendEmail({
-          to: emailBarbero,
-          subject: "Cancelación de cita",
-          html: correos.citaCancelada({
-            fecha: cita.fecha,
-            hora: cita.hora,
-            razon: req.body.razon,
-          }),
-        });
-      }
-
-      return res.json({
-        mensaje: "Cita cancelada correctamente",
-      });
-    } catch (error) {
-      return res.status(400).json({
-        mensaje: error.message,
+    // Verificar que la cita no esté ya completada o expirada
+    if (cita.estado === "Completa" || cita.estado === "Expirada") {
+      await t.rollback();
+      return res.status(400).json({ 
+        mensaje: `No se puede cancelar una cita en estado ${cita.estado}` 
       });
     }
+
+    // Cambiar estado a cancelada
+    await cita.update({ estado: "Cancelada" }, { transaction: t });
+
+    // Enviar notificación de cancelación
+    try {
+      await notificationsController.createAppointmentNotification(
+        id,
+        "cancelacion",
+        { transaction: t }
+      );
+    } catch (notifError) {
+      console.error("Error al crear notificación de cancelación:", notifError);
+    }
+
+    await t.commit();
+
+    return res.json({
+      mensaje: "Cita cancelada correctamente",
+      cita,
+    });
+
+  } catch (error) {
+    await t.rollback();
+    return res.status(400).json({
+      mensaje: error.message,
+    });
   }
+}
 
   // Marcar todas las notificaciones como leídas para un usuario
   async markAllAsRead(req = request, res = response) {

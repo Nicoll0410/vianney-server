@@ -1,6 +1,10 @@
-import express, { request, response } from "express";
+// Archivo: src/server.js
+import express from "express";
 import cors from "cors";
 import morgan from "morgan";
+import http from "http"; // 👈 necesario para socket.io
+import { Server as SocketIOServer } from "socket.io";
+
 import { jwtMiddlewares } from "./middlewares/jwt.middleware.js";
 import { proveedoresRouter } from "./modules/proveedores/proveedores.route.js";
 import { RouterVentas } from "./modules/ventas/ventas.route.js";
@@ -19,31 +23,55 @@ import { dashboardRouter } from "./modules/dashboard/dashboard.route.js";
 import { publicRouter } from "./modules/public/public.route.js";
 import { Database } from "./database.js";
 import { syncAllModels } from "./syncAll.js";
-import { notificationsRouter } from './modules/notifications/notifications.route.js';
+import { notificationsRouter } from "./modules/notifications/notifications.route.js";
 
 export class Server {
     constructor() {
         this.app = express();
+
+        // Middlewares y rutas
         this.middlewares();
         this.routes();
 
+        // 👇 Crear servidor HTTP y Socket.IO
+        this.server = http.createServer(this.app);
+        this.io = new SocketIOServer(this.server, {
+            cors: {
+                origin: "*", // ⚠️ En producción cámbialo a tu dominio frontend
+                methods: ["GET", "POST", "PUT", "DELETE"]
+            }
+        });
+
+        // Guardar instancia global de io para usar en controladores
+        this.app.set("io", this.io);
+
+        // Eventos de conexión
+        this.io.on("connection", (socket) => {
+            console.log("🟢 Cliente conectado:", socket.id);
+
+            socket.on("disconnect", () => {
+                console.log("🔴 Cliente desconectado:", socket.id);
+            });
+        });
+
+        // Sincronizar modelos y levantar servidor
         syncAllModels()
             .then(() => {
-                this.app.listen(process.env.PORT, "0.0.0.0", () =>
+                this.server.listen(process.env.PORT, "0.0.0.0", () =>
                     console.log(
-                        `Servidor ejecutandose en el puerto ${process.env.PORT} 🎉🎉🎉`
+                        `🚀 Servidor ejecutándose en el puerto ${process.env.PORT}`
                     )
                 );
             })
             .catch((err) => {
-                console.error("Error al sincronizar modelos:", err);
+                console.error("❌ Error al sincronizar modelos:", err);
             });
     }
 
     middlewares() {
         this.app.use(
             cors({
-                origin: ["http://localhost:8081", "http://localhost:19006"],
+                origin: ["http://localhost:8081", "http://localhost:19006"], // añade tu frontend en prod
                 methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
                 allowedHeaders: ["Content-Type", "Authorization"],
                 credentials: true,
@@ -53,17 +81,20 @@ export class Server {
         this.app.use(express.json({ limit: "50mb" }));
         this.app.use(express.urlencoded({ extended: true, limit: "10mb" }));
         this.app.use(morgan("combined"));
+
         new Database();
     }
 
     routes() {
+        // Rutas públicas
         this.app.use("/auth", authRouter);
         this.app.use("/public", publicRouter);
         this.app.use("/usuarios", usuarioRouter);
-        
-        // Middleware de autenticación JWT para las rutas siguientes
+
+        // Middleware JWT para proteger el resto
         this.app.use(jwtMiddlewares.verifyToken);
-        
+
+        // Rutas privadas
         this.app.use("/roles", rolesRouter);
         this.app.use("/proveedores", proveedoresRouter);
         this.app.use("/categorias-insumos", categoriasInsumosRouter);
@@ -71,7 +102,7 @@ export class Server {
         this.app.use("/movimientos", movimientosRouter);
         this.app.use("/usuarios", usuarioRouter);
         this.app.use("/servicios", serviciosRouter);
-        this.app.use('/notifications', notificationsRouter); // 👈 Esto es importante
+        this.app.use("/notifications", notificationsRouter);
         this.app.use("/barberos", barberosRouter);
         this.app.use("/clientes", clientesRouter);
         this.app.use("/compras", comprasRouter);

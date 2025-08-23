@@ -37,8 +37,8 @@ citasRouter.put("/:id", [
     validaciones.estaVacio("hora", "La hora es obligatoria")
 ], citasController.update);
 
-citasRouter.put("/cancel-date/:id", [validaciones.estaVacio("razon", "La razón de la cancelación es obligatoria")], citasController.cancelDate);
 citasRouter.put("/confirm-date/:id", citasController.confirmDate);
+citasRouter.put("/cancelar-cita/:id", citasController.cancelDate);
 citasRouter.put("/expire-date/:id", citasController.expireDate);
 
 citasRouter.delete("/:id", citasController.delete);

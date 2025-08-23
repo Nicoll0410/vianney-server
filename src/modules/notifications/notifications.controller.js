@@ -75,6 +75,16 @@ class NotificationsController {
                 leido: false
             });
 
+            // 👇 Nuevo: emitir evento socket
+const io = req.app.get("io");
+io.emit("newNotification", {
+    usuarioID,
+    titulo,
+    cuerpo,
+    notificacion
+});
+
+
             return res.status(201).json({
                 success: true,
                 message: "Notificación creada exitosamente",
@@ -156,6 +166,14 @@ class NotificationsController {
                 relacionId: cita.id,
                 leido: false
             }, { transaction: options.transaction });
+
+            const io = req.app.get("io");
+io.emit("newNotification", {
+    usuarioID: usuarioId,
+    titulo,
+    cuerpo,
+    notificacion
+});
 
             console.log("✅ Notificación creada exitosamente:", notificacion.id);
 
