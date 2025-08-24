@@ -24,6 +24,7 @@ import { publicRouter } from "./modules/public/public.route.js";
 import { Database } from "./database.js";
 import { syncAllModels } from "./syncAll.js";
 import { notificationsRouter } from "./modules/notifications/notifications.route.js";
+import { JobsManager } from "./jobs/index.js";
 
 export class Server {
     constructor() {
@@ -57,6 +58,7 @@ export class Server {
         // Sincronizar modelos y levantar servidor
         syncAllModels()
             .then(() => {
+                JobsManager.iniciarTodos();
                 this.server.listen(process.env.PORT, "0.0.0.0", () =>
                     console.log(
                         `🚀 Servidor ejecutándose en el puerto ${process.env.PORT}`

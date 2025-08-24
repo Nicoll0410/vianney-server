@@ -28,6 +28,7 @@ import { Servicio } from "./modules/servicios/servicios.model.js";
 import { ServiciosPorInsumos } from "./modules/servicios/servicios_insumos.model.js";
 
 import { Cita } from "./modules/citas/citas.model.js";
+import { Venta } from "./modules/ventas/ventas.model.js";
 
 /* USUARIOS Y ROLES */
 Usuario.belongsTo(Rol, { foreignKey: "rolID", as: "rol" });
@@ -68,6 +69,11 @@ Cita.belongsTo(Barbero, { foreignKey: "barberoID", as: "barbero" });
 /* CLIENTES Y CITAS */
 Cliente.hasMany(Cita, { foreignKey: "pacienteID", as: "citas" });
 Cita.belongsTo(Cliente, { foreignKey: "pacienteID", as: "cliente" }); // ✅ Corrección aplicada aquí
+
+    Cita.hasOne(Venta, {
+        foreignKey: 'citaID',
+        as: 'venta'
+    });
 
 /* COMPRAS Y DETALLES */
 Compra.belongsTo(Proveedor, { foreignKey: "proveedorID", as: "proveedor" });
