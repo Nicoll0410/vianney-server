@@ -10,21 +10,21 @@ export class Database {
 
     (async () => {
       const {
-        DATABASE_USERNAME,
-        DATABASE_PASSWORD,
-        DATABASE_HOST,
-        DATABASE_PORT,
-        DATABASE_NAME,
+        DB_USER,
+        DB_PASS,
+        DB_HOST,
+        DB_PORT,
+        DB_NAME,
       } = process.env;
 
       try {
         /* ───────────── Sequelize instance ───────────── */
         this.database = new Sequelize({
-          username: DATABASE_USERNAME,
-          password: DATABASE_PASSWORD,
-          host:     DATABASE_HOST,
-          port:     DATABASE_PORT,
-          database: DATABASE_NAME,
+          username: DB_USER,
+          password: DB_PASS,
+          host:     DB_HOST,
+          port:     DB_PORT,
+          database: DB_NAME,
           dialect:  "mysql",
           dialectModule: mySQLDialect,
 
