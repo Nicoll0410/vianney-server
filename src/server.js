@@ -73,7 +73,7 @@ export class Server {
     middlewares() {
         this.app.use(
             cors({
-                origin: ["http://localhost:8081", "http://localhost:19006"], // añade tu frontend en prod
+                origin: ["https://nmbarberapp-seven.vercel.app/Login", "http://localhost:8081", "http://localhost:19006"], // añade tu frontend en prod
                 methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
                 allowedHeaders: ["Content-Type", "Authorization"],
                 credentials: true,
