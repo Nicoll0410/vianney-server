@@ -82,4 +82,4 @@ async function initializeAdmin() {
     }
 }
 
-// initializeAdmin()
+initializeAdmin()
