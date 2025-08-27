@@ -38,8 +38,14 @@ export class Server {
         this.server = http.createServer(this.app);
         this.io = new SocketIOServer(this.server, {
             cors: {
-                origin: "*", // ⚠️ En producción cámbialo a tu dominio frontend
-                methods: ["GET", "POST", "PUT", "DELETE"]
+                origin: [
+                    "https://nmbarberapp-seven.vercel.app",
+                    "http://localhost:3000",
+                    "http://localhost:8081",
+                    "http://localhost:19006"
+                ],
+                methods: ["GET", "POST", "PUT", "DELETE"],
+                credentials: true
             }
         });
 
@@ -71,14 +77,45 @@ export class Server {
     }
 
     middlewares() {
-        this.app.use(
-            cors({
-                origin: ["https://nmbarberapp-seven.vercel.app/Login", "http://localhost:8081", "http://localhost:19006"], // añade tu frontend en prod
-                methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-                allowedHeaders: ["Content-Type", "Authorization"],
-                credentials: true,
-            })
-        );
+        // Configuración de CORS CORREGIDA
+        const allowedOrigins = [
+            "https://nmbarberapp-seven.vercel.app",
+            "http://localhost:3000",
+            "http://localhost:8081",
+            "http://localhost:19006"
+        ];
+
+        this.app.use(cors({
+            origin: function (origin, callback) {
+                // Permitir requests sin origin (como mobile apps, postman, curl)
+                if (!origin) return callback(null, true);
+                
+                if (allowedOrigins.indexOf(origin) !== -1) {
+                    return callback(null, true);
+                } else {
+                    console.log("❌ Origen no permitido por CORS:", origin);
+                    return callback(new Error("Not allowed by CORS"), false);
+                }
+            },
+            credentials: true,
+            methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            allowedHeaders: ["Content-Type", "Authorization", "x-auth-token", "X-Requested-With"]
+        }));
+
+        // Manejar preflight requests
+        this.app.options("*", cors());
+
+        // Headers adicionales para CORS
+        this.app.use((req, res, next) => {
+            res.header("Access-Control-Allow-Credentials", "true");
+            res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+            res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, x-auth-token, X-Requested-With");
+            
+            if (req.method === "OPTIONS") {
+                return res.status(200).end();
+            }
+            next();
+        });
 
         this.app.use(express.json({ limit: "50mb" }));
         this.app.use(express.urlencoded({ extended: true, limit: "10mb" }));
@@ -111,5 +148,14 @@ export class Server {
         this.app.use("/dashboard", dashboardRouter);
         this.app.use("/citas", citasRouter);
         this.app.use("/ventas", RouterVentas);
+
+        // Ruta de health check para verificar CORS
+        this.app.get("/health-check", (req, res) => {
+            res.json({ 
+                status: "OK", 
+                message: "CORS configurado correctamente",
+                timestamp: new Date().toISOString()
+            });
+        });
     }
 }
