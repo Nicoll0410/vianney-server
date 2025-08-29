@@ -13,8 +13,6 @@ class Correos {
      ╚════════════════════════════════════════════╝ */
 // Modificar la plantilla de confirmarIdentidad y envioCredenciales
 confirmarIdentidad({ codigo, email, verificationLink }) {
-  const baseUrl = process.env.FRONTEND_URL || 'http://localhost:8081';
-  const verificationLink = `${baseUrl}/verify-email?email=${encodeURIComponent(email)}&code=${codigo}`;
   return `
 <div style="font-family:Nunito,Arial,sans-serif;background:#f4f4f4;padding:40px 0;">
   <table align="center" cellpadding="0" cellspacing="0" style="max-width:500px;background:#ffffff;padding:32px 24px;border-radius:8px;">
