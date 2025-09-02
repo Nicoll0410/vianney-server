@@ -100,7 +100,7 @@ io.emit("newNotification", {
         }
     }
 
-// notifications.controller.js - REEMPLAZAR la función completa
+// notifications.controller.js - REEMPLAZAR la verificación de duplicados
 async createAppointmentNotification(citaId, tipo, options = {}) {
     try {
         console.log("🔔 CREANDO NOTIFICACIÓN - Cita ID:", citaId, "Tipo:", tipo);
@@ -134,18 +134,24 @@ async createAppointmentNotification(citaId, tipo, options = {}) {
 
         const usuarioId = cita.barbero.usuario.id;
         
-        // ✅ VERIFICAR SI YA EXISTE UNA NOTIFICACIÓN PARA ESTA CITA Y TIPO
+        // ✅ VERIFICACIÓN MEJORADA: Solo prevenir duplicados EN LA MISMA TRANSACCIÓN
+        // Buscar notificaciones creadas en los últimos 5 segundos para la misma cita
+        const cincoSegundosAtras = new Date(Date.now() - 5000);
+        
         const notificacionExistente = await Notificacion.findOne({
             where: {
                 usuarioID: usuarioId,
                 relacionId: citaId,
-                tipo: "cita"
+                tipo: "cita",
+                createdAt: {
+                    [Op.gte]: cincoSegundosAtras
+                }
             },
             transaction: options.transaction
         });
 
         if (notificacionExistente) {
-            console.log("⚠️ Notificación ya existe para esta cita, evitando duplicado");
+            console.log("⚠️ Notificación duplicada detectada (creada hace menos de 5 segundos), evitando duplicado");
             return notificacionExistente;
         }
 
