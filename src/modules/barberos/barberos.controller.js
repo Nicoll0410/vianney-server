@@ -881,6 +881,121 @@ class BarberosController {
     }
   }
 
+  // ─────── OBTENER BARBEROS PARA AGENDA (excluye admin backend) ───────
+async getParaAgenda(req = request, res = response) {
+  try {
+    const {
+      offset,
+      limit: defaultLimit,
+      where,
+    } = filtros.obtenerFiltros({
+      busqueda: req.query.search,
+      modelo: Barbero,
+      pagina: req.query.page,
+      camposBusqueda: ["nombre", "cedula", "telefono"],
+    });
+
+    // Verificar si se solicita todos los registros sin paginación
+    const all = req.query.all === "true";
+
+    let queryOptions = {
+      where: {
+        ...where,
+        cedula: { [Op.ne]: 100000000 } // Excluir al administrador del backend
+      },
+      attributes: [
+        "id",
+        "nombre",
+        "cedula",
+        "telefono",
+        "fecha_nacimiento",
+        "fecha_de_contratacion",
+        "avatar",
+        "usuarioID",
+        "createdAt",
+        "updatedAt",
+      ],
+      include: [
+        {
+          model: Usuario,
+          attributes: ["id", "email", "estaVerificado"],
+          include: [
+            {
+              model: Rol,
+              as: "rol",
+              attributes: ["id", "nombre", "avatar"],
+            },
+          ],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+    };
+
+    let barberos;
+    let total;
+
+    if (all) {
+      // Obtener todos los barberos sin paginación
+      barberos = await Barbero.findAll(queryOptions);
+      total = barberos.length;
+    } else {
+      // Aplicar paginación normal
+      const limit = req.query.limit ? Number(req.query.limit) : defaultLimit;
+      barberos = await Barbero.findAll({
+        ...queryOptions,
+        offset,
+        limit,
+      });
+      total = await Barbero.count({ where: queryOptions.where });
+    }
+
+    // ✅ CORREGIR FECHAS: Ajustar las fechas para compensar zona horaria
+    const barberosProcesados = barberos.map(barbero => {
+      const barberoData = barbero.get({ plain: true });
+      
+      // Procesar fecha de nacimiento
+      let fechaNacimientoCorregida = barberoData.fecha_nacimiento;
+      if (fechaNacimientoCorregida) {
+        try {
+          const fecha = new Date(fechaNacimientoCorregida);
+          // Añadir un día para compensar la conversión de zona horaria
+          fecha.setDate(fecha.getDate() + 1);
+          fechaNacimientoCorregida = fecha.toISOString().split('T')[0];
+        } catch (error) {
+          console.error('Error al procesar fecha de nacimiento:', error);
+        }
+      }
+
+      // Procesar fecha de contratación
+      let fechaContratacionCorregida = barberoData.fecha_de_contratacion;
+      if (fechaContratacionCorregida) {
+        try {
+          const fecha = new Date(fechaContratacionCorregida);
+          // Añadir un día para compensar la conversión de zona horaria
+          fecha.setDate(fecha.getDate() + 1);
+          fechaContratacionCorregida = fecha.toISOString().split('T')[0];
+        } catch (error) {
+          console.error('Error al procesar fecha de contratación:', error);
+        }
+      }
+
+      return {
+        ...barberoData,
+        fecha_nacimiento: fechaNacimientoCorregida, // ✅ Usar fecha corregida
+        fecha_de_contratacion: fechaContratacionCorregida // ✅ Usar fecha corregida
+      };
+    });
+
+    return res.json({ barberos: barberosProcesados, total });
+  } catch (err) {
+    console.error("BarberosController.getParaAgenda →", err);
+    return res.status(500).json({
+      mensaje: "Error interno del servidor al obtener barberos para agenda",
+      error: err.message,
+    });
+  }
+}
+
   /* ─────── ELIMINAR ─────── */
   async delete(req = request, res = response) {
     try {

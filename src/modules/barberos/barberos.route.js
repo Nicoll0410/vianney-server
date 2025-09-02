@@ -25,6 +25,8 @@ barberosRouter.post('/:id/horario/excepcion', barberosController.addExcepcion);
 
 barberosRouter.post('/:id/reenviar-verificacion', barberosController.reenviarEmailVerificacion);
 
+barberosRouter.get('/para-agenda', barberosController.getParaAgenda)
+
 /* ---------- crear ---------- */
 barberosRouter.post(
   '/',
