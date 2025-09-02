@@ -100,109 +100,131 @@ io.emit("newNotification", {
         }
     }
 
-    async createAppointmentNotification(citaId, tipo, options = {}) {
-        try {
-            console.log("🔔 CREANDO NOTIFICACIÓN - Cita ID:", citaId, "Tipo:", tipo);
-            
-            const cita = await Cita.findByPk(citaId, {
-                include: [
-                    { 
-                        model: Servicio, 
-                        as: "servicio" 
-                    },
-                    { 
-                        model: Barbero, 
-                        as: "barbero", 
-                        include: [{ 
-                            model: Usuario, 
-                            as: "usuario" 
-                        }] 
-                    },
-                    { 
-                        model: Cliente, 
-                        as: "cliente" 
-                    }
-                ],
-                transaction: options.transaction
-            });
+// notifications.controller.js - REEMPLAZAR la función completa
+async createAppointmentNotification(citaId, tipo, options = {}) {
+    try {
+        console.log("🔔 CREANDO NOTIFICACIÓN - Cita ID:", citaId, "Tipo:", tipo);
+        
+        const cita = await Cita.findByPk(citaId, {
+            include: [
+                { 
+                    model: Servicio, 
+                    as: "servicio" 
+                },
+                { 
+                    model: Barbero, 
+                    as: "barbero", 
+                    include: [{ 
+                        model: Usuario, 
+                        as: "usuario" 
+                    }] 
+                },
+                { 
+                    model: Cliente, 
+                    as: "cliente" 
+                }
+            ],
+            transaction: options.transaction
+        });
 
-            if (!cita?.barbero?.usuario) {
-                console.error("❌ No se pudo obtener información necesaria para la notificación");
-                return null;
-            }
-
-            const usuarioId = cita.barbero.usuario.id;
-            const fechaFormateada = new Date(cita.fecha).toLocaleDateString("es-ES", {
-                weekday: "long",
-                day: "numeric",
-                month: "long"
-            });
-            
-            const horaFormateada = cita.hora.substring(0, 5);
-            let titulo, cuerpo;
-
-            if (tipo === "creacion") {
-                titulo = "📅 Nueva cita agendada";
-                cuerpo = `El cliente ${cita.cliente?.nombre || cita.pacienteTemporalNombre || "un cliente"} ha agendado una cita para el ${fechaFormateada} a las ${horaFormateada}`;
-            } else if (tipo === "cancelacion") {
-                titulo = "❌ Cita cancelada";
-                cuerpo = `La cita del ${fechaFormateada} a las ${horaFormateada} ha sido cancelada`;
-            } else {
-                return null;
-            }
-
-            console.log("📝 Creando notificación con:", {
-                usuarioID: usuarioId,
-                titulo,
-                cuerpo,
-                leido: false
-            });
-
-            const notificacion = await Notificacion.create({
-                usuarioID: usuarioId,
-                titulo,
-                cuerpo,
-                tipo: "cita",
-                relacionId: cita.id,
-                leido: false
-            }, { transaction: options.transaction });
-
-            const io = req.app.get("io");
-io.emit("newNotification", {
-    usuarioID: usuarioId,
-    titulo,
-    cuerpo,
-    notificacion
-});
-
-            console.log("✅ Notificación creada exitosamente:", notificacion.id);
-
-            // Obtener usuario con token push
-            const usuario = await Usuario.findByPk(usuarioId);
-            
-            if (usuario?.expo_push_token) {
-                console.log("📱 Enviando push notification...");
-                await this.sendPushNotification({
-                    userId: usuario.id,
-                    titulo,
-                    cuerpo,
-                    data: {
-                        type: "cita",
-                        citaId: cita.id,
-                        notificacionId: notificacion.id,
-                        screen: "DetalleCita"
-                    }
-                });
-            } else {
-                console.log("📵 Usuario no tiene token push registrado");
-            }
-
-            return notificacion;
-        } catch (error) {
-            console.error("❌ Error en createAppointmentNotification:", error);
-            throw error;
+        if (!cita?.barbero?.usuario) {
+            console.error("❌ No se pudo obtener información necesaria para la notificación");
+            return null;
         }
+
+        const usuarioId = cita.barbero.usuario.id;
+        
+        // ✅ VERIFICAR SI YA EXISTE UNA NOTIFICACIÓN PARA ESTA CITA Y TIPO
+        const notificacionExistente = await Notificacion.findOne({
+            where: {
+                usuarioID: usuarioId,
+                relacionId: citaId,
+                tipo: "cita"
+            },
+            transaction: options.transaction
+        });
+
+        if (notificacionExistente) {
+            console.log("⚠️ Notificación ya existe para esta cita, evitando duplicado");
+            return notificacionExistente;
+        }
+
+        const fechaFormateada = new Date(cita.fecha).toLocaleDateString("es-ES", {
+            weekday: "long",
+            day: "numeric",
+            month: "long"
+        });
+        
+        const horaFormateada = cita.hora.substring(0, 5);
+        let titulo, cuerpo;
+
+        if (tipo === "creacion") {
+            titulo = "📅 Nueva cita agendada";
+            cuerpo = `El cliente ${cita.cliente?.nombre || cita.pacienteTemporalNombre || "un cliente"} ha agendado una cita para el ${fechaFormateada} a las ${horaFormateada}`;
+        } else if (tipo === "cancelacion") {
+            titulo = "❌ Cita cancelada";
+            cuerpo = `La cita del ${fechaFormateada} a las ${horaFormateada} ha sido cancelada`;
+        } else {
+            return null;
+        }
+
+        console.log("📝 Creando notificación con:", {
+            usuarioID: usuarioId,
+            titulo,
+            cuerpo,
+            leido: false
+        });
+
+        const notificacion = await Notificacion.create({
+            usuarioID: usuarioId,
+            titulo,
+            cuerpo,
+            tipo: "cita",
+            relacionId: cita.id,
+            leido: false
+        }, { transaction: options.transaction });
+
+        // ✅ USAR io DE FORMA SEGURA - solo si está disponible
+        if (options.io) {
+            options.io.emit("newNotification", {
+                usuarioID: usuarioId,
+                titulo,
+                cuerpo,
+                notificacion
+            });
+            console.log("📡 Evento de socket emitido");
+        } else {
+            console.log("ℹ️  Socket io no disponible en este contexto");
+        }
+
+        console.log("✅ Notificación creada exitosamente:", notificacion.id);
+
+        // Enviar push notification si existe token
+        const usuario = await Usuario.findByPk(usuarioId);
+        
+        if (usuario?.expo_push_token) {
+            console.log("📱 Enviando push notification...");
+            await this.sendPushNotification({
+                userId: usuario.id,
+                titulo,
+                cuerpo,
+                data: {
+                    type: "cita",
+                    citaId: cita.id,
+                    notificacionId: notificacion.id,
+                    screen: "DetalleCita"
+                }
+            });
+        } else {
+            console.log("📵 Usuario no tiene token push registrado");
+        }
+
+        return notificacion;
+    } catch (error) {
+        console.error("❌ Error en createAppointmentNotification:", error);
+        throw error;
     }
+}
 
     async sendPushNotification({ userId, titulo, cuerpo, data = {} }) {
         try {

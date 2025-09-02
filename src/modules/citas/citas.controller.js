@@ -671,26 +671,23 @@ class CitasController {
       const citaCreada = await Cita.create(datosFinales, { transaction: t });
 
       // Crear notificación si el barbero tiene usuario asociado
-      if (barbero.usuario) {
-        try {
-          console.log(
-            "🔔 Intentando crear notificación para barbero:",
-            barbero.usuario.id
-          );
-          await notificationsController.createAppointmentNotification(
+if (barbero.usuario) {
+    try {
+        console.log("🔔 Intentando crear notificación para barbero:", barbero.usuario.id);
+        const io = req.app.get("io"); // 👈 Obtener io
+        await notificationsController.createAppointmentNotification(
             citaCreada.id,
             "creacion",
-            { transaction: t } // 👈 Asegúrate de pasar la transacción
-          );
-        } catch (notifError) {
-          console.error("❌ Error al crear notificación:", notifError);
-          // No hacemos rollback por un error en la notificación
-        }
-      } else {
-        console.log(
-          "⚠️ Barbero no tiene usuario asociado, no se crea notificación"
+            { 
+                transaction: t,
+                io: io // 👈 Pasar io explícitamente
+            }
         );
-      }
+    } catch (notifError) {
+        console.error("❌ Error al crear notificación:", notifError);
+    }
+}
+
 
         // ENVÍO DE EMAIL AL BARBERO - AÑADE ESTE BLOQUE
     try {
@@ -1001,19 +998,19 @@ class CitasController {
       // Cambiar estado a cancelada
       await cita.update({ estado: "Cancelada" }, { transaction: t });
 
-      // Enviar notificación de cancelación
-      try {
-        await notificationsController.createAppointmentNotification(
-          id,
-          "cancelacion",
-          { transaction: t }
-        );
-      } catch (notifError) {
-        console.error(
-          "Error al crear notificación de cancelación:",
-          notifError
-        );
-      }
+try {
+    const io = req.app.get("io"); // 👈 Obtener io
+    await notificationsController.createAppointmentNotification(
+        id,
+        "cancelacion",
+        { 
+            transaction: t,
+            io: io // 👈 Pasar io explícitamente
+        }
+    );
+} catch (notifError) {
+    console.error("Error al crear notificación de cancelación:", notifError);
+}
           // ENVÍO DE EMAIL AL BARBERO - AÑADE ESTE BLOQUE
     try {
       let clienteNombre = "";
