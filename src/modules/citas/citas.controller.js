@@ -19,7 +19,7 @@ import {
 } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
 import { format } from "mysql2";
-import { correos } from "../../utils/correo.util.js";
+import { correos } from "../../utils/correos.util.js";
 import { sendEmail } from "../../utils/send-email.util.js";
 import jwt from "jsonwebtoken";
 import { Insumo } from "../insumos/insumos.model.js";
