@@ -43,14 +43,13 @@ export class Server {
           "http://localhost:3000",
           "http://localhost:8081",
           "http://localhost:19006",
+          "http://localhost:19000" // ← Agrega Expo web
         ],
         methods: ["GET", "POST", "PUT", "DELETE"],
         credentials: true,
       },
+      transports: ['websocket' , 'polling']
     });
-
-    // Guardar instancia global de io para usar en controladores
-    this.app.set("io", this.io);
 
     // Eventos de conexión
     this.io.on("connection", (socket) => {
@@ -60,12 +59,20 @@ export class Server {
       socket.on("unir_usuario", (usuarioId) => {
         socket.join(`usuario_${usuarioId}`);
         console.log(`👤 Usuario ${usuarioId} unido a su sala personal`);
+
+        // Confirmar unión
+        socket.emit("usuario_unido", { success: true, usuarioId });
       });
 
-      socket.on("disconnect", () => {
-        console.log("🔴 Cliente desconectado:", socket.id);
-      });
-    });
+  // Debugging de eventos
+  socket.onAny((event, ...args) => {
+    console.log(`📦 Evento: ${event}`, args);
+  });
+
+  socket.on("disconnect", (reason) => {
+    console.log("🔴 Cliente desconectado:", socket.id, "Razón:", reason);
+  });
+});
 
     // Sincronizar modelos y levantar servidor
     syncAllModels()
