@@ -23,8 +23,8 @@ import { correos } from "../../utils/correos.util.js";
 import { sendEmail } from "../../utils/send-email.util.js";
 import jwt from "jsonwebtoken";
 import { Insumo } from "../insumos/insumos.model.js";
-import { sequelize } from "../../database.js"; // Asegúrate que la ruta sea correcta
-import notificationsController from "../notifications/notifications.controller.js";
+import { sequelize } from "../../database.js";
+import { Notificacion } from "../notifications/notifications.model.js";
 
 class CitasController {
   async get(req = request, res = response) {
@@ -226,7 +226,6 @@ class CitasController {
     }
   }
 
-  /* -------- GET citas del barbero autenticado ------------------ */
   async getByBarberID(req = request, res = response) {
     try {
       const authHeader = req.header("Authorization");
@@ -242,7 +241,6 @@ class CitasController {
         where: { usuarioID: usuario.id },
       });
 
-      /* ---------- filtros de búsqueda ---------- */
       const obtenerIdsRelacionados = async (Modelo, search) => {
         const registros = await Modelo.findAll({
           attributes: ["id"],
@@ -288,7 +286,6 @@ class CitasController {
         });
       }
 
-      /* ------------- NUEVO: all=true salta la paginación -------- */
       const baseQuery = {
         order: [["fecha", "DESC"]],
         where: {
@@ -668,7 +665,7 @@ class CitasController {
       // Crear la cita
       const citaCreada = await Cita.create(datosFinales, { transaction: t });
 
-      // 🔔 SISTEMA DE NOTIFICACIONES MEJORADO - PARA LOS 3 ESCENARIOS
+      // 🔔 SISTEMA DE NOTIFICACIONES MEJORADO
       try {
         const io = req.app.get("io");
         const userSockets = req.app.get("userSockets");
@@ -687,7 +684,7 @@ class CitasController {
               include: [{
                 model: Usuario,
                 as: "usuario",
-                attributes: ["id", "email"]
+                attributes: ["id"]
               }],
               attributes: ["id", "nombre"]
             },
@@ -697,7 +694,7 @@ class CitasController {
               include: [{
                 model: Usuario,
                 as: "usuario",
-                attributes: ["id", "email"]
+                attributes: ["id"]
               }],
               attributes: ["id", "nombre"]
             }
@@ -705,9 +702,9 @@ class CitasController {
           transaction: t
         });
 
-        // Obtener ID y ROL del usuario que crea la cita
+        // Obtener ID y rol del usuario que crea la cita
         const usuarioCreadorId = req.userId;
-        const usuarioCreadorRol = req.userRol; // Este dato debe venir del middleware JWT
+        const usuarioCreadorRol = req.userRol;
         
         // Formatear fecha y hora
         const fechaFormateada = new Date(citaCompleta.fecha).toLocaleDateString("es-ES", {
@@ -718,45 +715,43 @@ class CitasController {
         
         const horaFormateada = citaCompleta.hora.substring(0, 5);
         const nombreServicio = citaCompleta.servicio.nombre;
+        const nombreCliente = citaCompleta.cliente?.nombre || citaCompleta.pacienteTemporalNombre || "un cliente";
+        const nombreBarbero = citaCompleta.barbero?.nombre || "un barbero";
         
         // 1. DETERMINAR QUIÉN CREÓ LA CITA Y QUIÉNES DEBEN SER NOTIFICADOS
         let destinatarios = [];
-        
-        // Obtener todos los administradores (rol_id = 1)
-        const administradores = await Usuario.findAll({
-          where: { 
-            rol_id: 1 // ID del rol administrador
-          },
-          attributes: ["id"],
-          transaction: t
-        });
 
         if (usuarioCreadorRol === "administrador") {
-          // Escenario 1: Administrador crea → Notificar a barbero y cliente
+          // Administrador crea → Notificar a barbero y cliente
           if (citaCompleta.barbero && citaCompleta.barbero.usuario) {
             destinatarios.push({
               userId: citaCompleta.barbero.usuario.id,
-              tipo: "barbero",
-              citaId: citaCreada.id
+              tipo: "barbero"
             });
           }
           
           if (citaCompleta.cliente && citaCompleta.cliente.usuario) {
             destinatarios.push({
               userId: citaCompleta.cliente.usuario.id,
-              tipo: "cliente",
-              citaId: citaCreada.id
+              tipo: "cliente"
             });
           }
         } 
         else if (usuarioCreadorRol === "barbero") {
-          // Escenario 2: Barbero crea → Notificar a administradores y cliente
+          // Barbero crea → Notificar a administradores y cliente
+          const administradores = await Usuario.findAll({
+            where: { 
+              rol_id: 1 // ID del rol administrador
+            },
+            attributes: ["id"],
+            transaction: t
+          });
+          
           administradores.forEach(admin => {
             if (admin.id !== usuarioCreadorId) {
               destinatarios.push({
                 userId: admin.id,
-                tipo: "administrador",
-                citaId: citaCreada.id
+                tipo: "administrador"
               });
             }
           });
@@ -764,27 +759,34 @@ class CitasController {
           if (citaCompleta.cliente && citaCompleta.cliente.usuario) {
             destinatarios.push({
               userId: citaCompleta.cliente.usuario.id,
-              tipo: "cliente",
-              citaId: citaCreada.id
+              tipo: "cliente"
             });
           }
         } 
         else if (usuarioCreadorRol === "cliente") {
-          // Escenario 3: Cliente crea → Notificar a barbero y administradores
+          // Cliente crea → Notificar a barbero y administradores
           if (citaCompleta.barbero && citaCompleta.barbero.usuario) {
             destinatarios.push({
               userId: citaCompleta.barbero.usuario.id,
-              tipo: "barbero",
-              citaId: citaCreada.id
+              tipo: "barbero"
             });
           }
           
+          const administradores = await Usuario.findAll({
+            where: { 
+              rol_id: 1 // ID del rol administrador
+            },
+            attributes: ["id"],
+            transaction: t
+          });
+          
           administradores.forEach(admin => {
-            destinatarios.push({
-              userId: admin.id,
-              tipo: "administrador",
-              citaId: citaCreada.id
-            });
+            if (admin.id !== usuarioCreadorId) {
+              destinatarios.push({
+                userId: admin.id,
+                tipo: "administrador"
+              });
+            }
           });
         }
 
@@ -795,32 +797,32 @@ class CitasController {
           switch (destinatario.tipo) {
             case "barbero":
               titulo = "📅 Nueva cita asignada";
-              cuerpo = `Tienes una cita con ${citaCompleta.cliente?.nombre || citaCompleta.pacienteTemporalNombre} para ${nombreServicio} el ${fechaFormateada} a las ${horaFormateada}`;
+              cuerpo = `Tienes una cita con ${nombreCliente} para ${nombreServicio} el ${fechaFormateada} a las ${horaFormateada}`;
               break;
               
             case "cliente":
               titulo = "✅ Cita confirmada";
-              cuerpo = `Tu cita para ${nombreServicio} con ${citaCompleta.barbero.nombre} ha sido confirmada para el ${fechaFormateada} a las ${horaFormateada}`;
+              cuerpo = `Tu cita para ${nombreServicio} con ${nombreBarbero} ha sido confirmada para el ${fechaFormateada} a las ${horaFormateada}`;
               break;
               
             case "administrador":
               titulo = "📋 Nueva cita en el sistema";
-              cuerpo = `Se ha creado una nueva cita para ${citaCompleta.cliente?.nombre || citaCompleta.pacienteTemporalNombre} con ${citaCompleta.barbero.nombre} el ${fechaFormateada}`;
+              cuerpo = `Se ha creado una nueva cita para ${nombreCliente} con ${nombreBarbero} el ${fechaFormateada}`;
               break;
           }
 
           // Crear notificación en base de datos
-          const notificacion = await notificationsController.createNotificationInDB(
-            destinatario.userId,
+          const notificacion = await Notificacion.create({
+            usuarioID: destinatario.userId,
             titulo,
             cuerpo,
-            "cita_creada",
-            destinatario.citaId,
-            { transaction: t }
-          );
+            tipo: "cita_creada",
+            relacionId: citaCreada.id,
+            leido: false
+          }, { transaction: t });
 
           // Enviar notificación por Socket.io
-          if (userSockets.has(destinatario.userId)) {
+          if (userSockets && userSockets.has(destinatario.userId)) {
             io.to(`user_${destinatario.userId}`).emit("nueva_notificacion", {
               ...notificacion.toJSON(),
               sound: true,
@@ -830,17 +832,40 @@ class CitasController {
           }
 
           // Enviar notificación push si está disponible
-          await notificationsController.sendPushNotification({
-            userId: destinatario.userId,
-            titulo,
-            cuerpo,
-            data: {
-              type: "nueva_cita",
-              citaId: destinatario.citaId,
-              notificacionId: notificacion.id,
-              screen: "DetalleCita"
+          try {
+            const usuarioToken = await UsuarioToken.findOne({
+              where: { usuarioID: destinatario.userId },
+              transaction: t
+            });
+            
+            if (usuarioToken) {
+              const response = await fetch("https://exp.host/--/api/v2/push/send", {
+                method: "POST",
+                headers: {
+                  Accept: "application/json",
+                  "Accept-encoding": "gzip, deflate",
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify([{
+                  to: usuarioToken.token,
+                  sound: "default",
+                  title: titulo,
+                  body: cuerpo,
+                  data: {
+                    type: "nueva_cita",
+                    citaId: citaCreada.id,
+                    notificacionId: notificacion.id,
+                    screen: "DetalleCita"
+                  }
+                }])
+              });
+              
+              const result = await response.json();
+              console.log(`📱 Notificación push enviada a usuario ${destinatario.userId}:`, result);
             }
-          });
+          } catch (pushError) {
+            console.error(`❌ Error enviando notificación push a usuario ${destinatario.userId}:`, pushError);
+          }
         }
 
         console.log(`✅ Notificaciones enviadas a ${destinatarios.length} destinatarios`);
@@ -1116,51 +1141,135 @@ class CitasController {
 
       // Enviar notificación de cancelación
       try {
-        await notificationsController.createAppointmentNotification(
-          id,
-          "cancelacion",
-          { transaction: t }
-        );
+        const io = req.app.get("io");
+        const userSockets = req.app.get("userSockets");
+        
+        // Obtener información completa para las notificaciones
+        const citaCompleta = await Cita.findByPk(id, {
+          include: [
+            {
+              model: Servicio,
+              as: "servicio",
+              attributes: ["nombre"]
+            },
+            {
+              model: Barbero,
+              as: "barbero",
+              include: [{
+                model: Usuario,
+                as: "usuario",
+                attributes: ["id"]
+              }],
+              attributes: ["id", "nombre"]
+            },
+            {
+              model: Cliente,
+              as: "cliente",
+              include: [{
+                model: Usuario,
+                as: "usuario",
+                attributes: ["id"]
+              }],
+              attributes: ["id", "nombre"]
+            }
+          ],
+          transaction: t
+        });
+
+        // Formatear fecha y hora
+        const fechaFormateada = new Date(citaCompleta.fecha).toLocaleDateString("es-ES", {
+          weekday: "long",
+          day: "numeric",
+          month: "long"
+        });
+        
+        const horaFormateada = citaCompleta.hora.substring(0, 5);
+        const nombreServicio = citaCompleta.servicio.nombre;
+        const nombreCliente = citaCompleta.cliente?.nombre || citaCompleta.pacienteTemporalNombre || "un cliente";
+        const nombreBarbero = citaCompleta.barbero?.nombre || "un barbero";
+        
+        // Notificar a todos los involucrados
+        const destinatarios = [];
+        
+        // Notificar al barbero
+        if (citaCompleta.barbero && citaCompleta.barbero.usuario) {
+          destinatarios.push({
+            userId: citaCompleta.barbero.usuario.id,
+            tipo: "barbero"
+          });
+        }
+        
+        // Notificar al cliente (si tiene usuario)
+        if (citaCompleta.cliente && citaCompleta.cliente.usuario) {
+          destinatarios.push({
+            userId: citaCompleta.cliente.usuario.id,
+            tipo: "cliente"
+          });
+        }
+        
+        // Notificar a administradores
+        const administradores = await Usuario.findAll({
+          where: { 
+            rol_id: 1 // ID del rol administrador
+          },
+          attributes: ["id"],
+          transaction: t
+        });
+        
+        administradores.forEach(admin => {
+          destinatarios.push({
+            userId: admin.id,
+            tipo: "administrador"
+          });
+        });
+
+        // Enviar notificaciones a cada destinatario
+        for (const destinatario of destinatarios) {
+          let titulo, cuerpo;
+          
+          switch (destinatario.tipo) {
+            case "barbero":
+              titulo = "❌ Cita cancelada";
+              cuerpo = `La cita con ${nombreCliente} para ${nombreServicio} el ${fechaFormateada} a las ${horaFormateada} ha sido cancelada`;
+              break;
+              
+            case "cliente":
+              titulo = "❌ Cita cancelada";
+              cuerpo = `Tu cita para ${nombreServicio} con ${nombreBarbero} del ${fechaFormateada} a las ${horaFormateada} ha sido cancelada`;
+              break;
+              
+            case "administrador":
+              titulo = "❌ Cita cancelada";
+              cuerpo = `La cita de ${nombreCliente} con ${nombreBarbero} del ${fechaFormateada} ha sido cancelada`;
+              break;
+          }
+
+          // Crear notificación en base de datos
+          const notificacion = await Notificacion.create({
+            usuarioID: destinatario.userId,
+            titulo,
+            cuerpo,
+            tipo: "cita_cancelada",
+            relacionId: citaCompleta.id,
+            leido: false
+          }, { transaction: t });
+
+          // Enviar notificación por Socket.io
+          if (userSockets && userSockets.has(destinatario.userId)) {
+            io.to(`user_${destinatario.userId}`).emit("nueva_notificacion", {
+              ...notificacion.toJSON(),
+              sound: true,
+              vibrate: true
+            });
+            console.log(`📤 Notificación de cancelación enviada por socket a usuario ${destinatario.userId}`);
+          }
+        }
+
+        console.log(`✅ Notificaciones de cancelación enviadas a ${destinatarios.length} destinatarios`);
+
       } catch (notifError) {
-        console.error(
-          "Error al crear notificación de cancelación:",
-          notifError
-        );
+        console.error("❌ Error en el sistema de notificaciones de cancelación:", notifError);
       }
-          // ENVÍO DE EMAIL AL BARBERO - AÑADE ESTE BLOQUE
-    try {
-      let clienteNombre = "";
-      if (cita.pacienteID) {
-        clienteNombre = cita.cliente ? cita.cliente.nombre : "Cliente";
-      } else {
-        clienteNombre = cita.pacienteTemporalNombre || "Cliente temporal";
-      }
-
-      if (cita.barbero && cita.barbero.usuario && cita.barbero.usuario.email) {
-        const fechaHora = new Date(`${cita.fecha}T${cita.hora}`);
-        const motivo = req.body.motivo || "No especificado";
-        
-        const emailContent = correos.notificacionCitaBarbero({
-          tipo: 'cancelacion',
-          cliente_nombre: clienteNombre,
-          fecha_hora: fechaHora,
-          servicio_nombre: cita.servicio ? cita.servicio.nombre : "Servicio",
-          motivo_cancelacion: motivo
-        });
-        
-        await sendEmail({
-          to: cita.barbero.usuario.email,
-          subject: 'Cita cancelada - Barbería',
-          html: emailContent
-        });
-        
-        console.log('📧 Email de cancelación enviado al barbero');
-      }
-    } catch (emailError) {
-      console.error('❌ Error al enviar email de cancelación:', emailError);
-      // No hacemos rollback por error en el email
-    }
-
 
       await t.commit();
 
@@ -1179,7 +1288,6 @@ class CitasController {
     }
   }
 
-  // Marcar todas las notificaciones como leídas para un usuario
   async markAllAsRead(req = request, res = response) {
     try {
       const { userId } = req.params;

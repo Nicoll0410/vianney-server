@@ -9,6 +9,56 @@ import { Cliente } from "../clientes/clientes.model.js";
 import { UsuarioToken } from "./usuarios_tokens.model.js";
 
 class NotificationsController {
+
+    // Método auxiliar para crear notificaciones
+async _createNotificationForUser(userId, titulo, cuerpo, tipo, relacionId = null, transaction = null) {
+  try {
+    const notificacion = await Notificacion.create({
+      usuarioID: userId,
+      titulo,
+      cuerpo,
+      tipo,
+      relacionId,
+      leido: false
+    }, { transaction });
+
+    return notificacion;
+  } catch (error) {
+    console.error(`Error creando notificación para usuario ${userId}:`, error);
+    throw error;
+  }
+}
+
+// Método auxiliar para enviar notificaciones por socket
+_sendSocketNotification(userId, notificacionData) {
+  try {
+    const io = this.getIO();
+    const userSockets = this.getUserSockets();
+    
+    if (userSockets.has(userId)) {
+      io.to(`user_${userId}`).emit("nueva_notificacion", {
+        ...notificacionData.toJSON(),
+        sound: true,
+        vibrate: true
+      });
+      console.log(`📤 Notificación enviada por socket a usuario ${userId}`);
+    }
+  } catch (error) {
+    console.error(`Error enviando notificación por socket a usuario ${userId}:`, error);
+  }
+}
+
+// Métodos para obtener las instancias de io y userSockets
+getIO() {
+  // Necesitas hacer que io esté disponible en este contexto
+  // Puedes inyectarlo o usar un approach diferente
+  return global.io; // O la forma en que tengas acceso a io
+}
+
+getUserSockets() {
+  return global.userSockets; // O la forma en que tengas acceso a userSockets
+}
+
     async saveToken(req = request, res = response) {
         try {
             const userId = req.user.id;

@@ -2,8 +2,9 @@
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
-import http from "http"; // 👈 necesario para socket.io
+import http from "http";
 import { Server as SocketIOServer } from "socket.io";
+import jwt from "jsonwebtoken";
 
 import { jwtMiddlewares } from "./middlewares/jwt.middleware.js";
 import { proveedoresRouter } from "./modules/proveedores/proveedores.route.js";
@@ -36,30 +37,38 @@ export class Server {
 
         // 👇 Crear servidor HTTP y Socket.IO
         this.server = http.createServer(this.app);
+        
+        // Configuración mejorada de Socket.IO
         this.io = new SocketIOServer(this.server, {
             cors: {
                 origin: [
                     "https://nmbarberapp-seven.vercel.app",
                     "http://localhost:3000",
                     "http://localhost:8081",
-                    "http://localhost:19006"
+                    "http://localhost:19006",
+                    "exp://192.168.1.*:19000" // Para dispositivos en red local
                 ],
                 methods: ["GET", "POST", "PUT", "DELETE"],
-                credentials: true
-            }
+                credentials: true,
+                allowedHeaders: ["Content-Type", "Authorization"]
+            },
+            transports: ['websocket', 'polling'] // Soporte para ambos transportes
         });
 
-        // Guardar instancia global de io para usar en controladores
+        // Almacenar conexiones de usuarios por ID
+        this.userSockets = new Map();
+
+        // Middleware de autenticación para sockets
+        this.io.use(this.authenticateSocket.bind(this));
+
+        // Configurar eventos de conexión
+        this.setupSocketEvents();
+
+        // Guardar instancias globalmente para acceso en controladores
+        global.io = this.io;
+        global.userSockets = this.userSockets;
         this.app.set("io", this.io);
-
-        // Eventos de conexión
-        this.io.on("connection", (socket) => {
-            console.log("🟢 Cliente conectado:", socket.id);
-
-            socket.on("disconnect", () => {
-                console.log("🔴 Cliente desconectado:", socket.id);
-            });
-        });
+        this.app.set("userSockets", this.userSockets);
 
         // Sincronizar modelos y levantar servidor
         syncAllModels()
@@ -76,13 +85,100 @@ export class Server {
             });
     }
 
+    // Middleware de autenticación para sockets
+    authenticateSocket(socket, next) {
+        try {
+            const token = socket.handshake.auth.token;
+            
+            if (!token) {
+                console.log("❌ Socket connection attempt without token");
+                return next(new Error('Authentication error: No token provided'));
+            }
+
+            // Verificar el token JWT
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            
+            // Adjuntar información del usuario al socket
+            socket.userId = decoded.userId;
+            socket.userRole = decoded.rol?.nombre;
+            socket.userEmail = decoded.email;
+            
+            console.log(`✅ Socket authenticated for user: ${decoded.email}`);
+            next();
+        } catch (error) {
+            console.error('❌ Socket authentication error:', error.message);
+            next(new Error('Authentication error: Invalid token'));
+        }
+    }
+
+    // Configurar eventos de socket
+    setupSocketEvents() {
+        this.io.on("connection", (socket) => {
+            console.log("🟢 Cliente conectado:", socket.id, "Usuario:", socket.userId, "Email:", socket.userEmail);
+
+            // Guardar la conexión del usuario
+            if (socket.userId) {
+                this.userSockets.set(socket.userId, socket.id);
+                
+                // Unir al usuario a una sala personalizada
+                socket.join(`user_${socket.userId}`);
+                console.log(`✅ Usuario ${socket.userId} unido a la sala user_${socket.userId}`);
+            }
+
+            // Manejar unión a salas específicas
+            socket.on("join-room", (room) => {
+                socket.join(room);
+                console.log(`✅ Socket ${socket.id} unido a la sala: ${room}`);
+            });
+
+            // Manejar solicitud para unirse a sala de usuario
+            socket.on("join-user-room", () => {
+                if (socket.userId) {
+                    socket.join(`user_${socket.userId}`);
+                    console.log(`✅ Usuario ${socket.userId} unido a su sala personal`);
+                }
+            });
+
+            // Manejar mensajes personalizados
+            socket.on("send-notification", (data) => {
+                console.log("📨 Notificación recibida para enviar:", data);
+                
+                // Reenviar la notificación al usuario específico
+                if (data.userId && data.notification) {
+                    this.io.to(`user_${data.userId}`).emit("new-notification", data.notification);
+                }
+            });
+
+            // Manejar desconexión
+            socket.on("disconnect", (reason) => {
+                console.log("🔴 Cliente desconectado:", socket.id, "Razón:", reason);
+                
+                // Eliminar de la lista de conexiones activas
+                if (socket.userId) {
+                    this.userSockets.delete(socket.userId);
+                }
+            });
+
+            // Manejar errores
+            socket.on("error", (error) => {
+                console.error("❌ Error en socket:", error);
+            });
+        });
+
+        // Manejar errores de conexión
+        this.io.engine.on("connection_error", (err) => {
+            console.error("❌ Error de conexión Socket.IO:", err);
+        });
+    }
+
     middlewares() {
         // Configuración de CORS CORREGIDA
         const allowedOrigins = [
             "https://nmbarberapp-seven.vercel.app",
             "http://localhost:3000",
             "http://localhost:8081",
-            "http://localhost:19006"
+            "http://localhost:19006",
+            "exp://192.168.1.*:19000"
         ];
 
         this.app.use(cors({
@@ -144,7 +240,7 @@ export class Server {
         this.app.use("/notifications", notificationsRouter);
         this.app.use("/barberos", barberosRouter);
         this.app.use("/clientes", clientesRouter);
-        this.app.use("/compras", comprasRouter);
+        app.use("/compras", comprasRouter);
         this.app.use("/dashboard", dashboardRouter);
         this.app.use("/citas", citasRouter);
         this.app.use("/ventas", RouterVentas);
@@ -154,7 +250,19 @@ export class Server {
             res.json({ 
                 status: "OK", 
                 message: "CORS configurado correctamente",
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                socketConnections: this.userSockets.size
+            });
+        });
+
+        // Ruta para verificar estado de sockets
+        this.app.get("/socket-status", (req, res) => {
+            res.json({
+                totalConnections: this.userSockets.size,
+                connections: Array.from(this.userSockets.entries()).map(([userId, socketId]) => ({
+                    userId,
+                    socketId
+                }))
             });
         });
     }
