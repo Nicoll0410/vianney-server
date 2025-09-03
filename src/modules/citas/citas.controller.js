@@ -530,7 +530,7 @@ class CitasController {
         });
       }
 
-      // Validar cliente o cliente temporal - CORREGIDO
+      // Validar cliente o cliente temporal
       if (!req.body.pacienteID && !req.body.pacienteTemporalNombre) {
         await t.rollback();
         return res.status(400).json({
@@ -569,7 +569,7 @@ class CitasController {
         .toString()
         .padStart(2, "0")}:00`;
 
-      // Verificar disponibilidad - LÓGICA CORREGIDA
+      // Verificar disponibilidad
       const citasSolapadas = await Cita.findAll({
         where: {
           barberoID: req.body.barberoID,
@@ -598,9 +598,9 @@ class CitasController {
 
         // Verificar si los rangos se solapan
         return (
-          (inicioMinutos >= citaInicioMin && inicioMinutos < citaFinMin) || // Nueva cita empieza durante una existente
-          (finMinutos > citaInicioMin && finMinutos <= citaFinMin) || // Nueva cita termina durante una existente
-          (inicioMinutos <= citaInicioMin && finMinutos >= citaFinMin) // Nueva cita engloba una existente
+          (inicioMinutos >= citaInicioMin && inicioMinutos < citaFinMin) ||
+          (finMinutos > citaInicioMin && finMinutos <= citaFinMin) ||
+          (inicioMinutos <= citaInicioMin && finMinutos >= citaFinMin)
         );
       });
 
@@ -617,7 +617,7 @@ class CitasController {
         });
       }
 
-      // Preparar datos de la cita - CORREGIDO
+      // Preparar datos de la cita
       const nuevaCita = {
         servicioID: req.body.servicioID,
         barberoID: req.body.barberoID,
@@ -634,9 +634,8 @@ class CitasController {
         direccion: req.body.direccion || "En barbería",
       };
 
-      // Asignar cliente - CORREGIDO
+      // Asignar cliente
       if (req.body.pacienteID) {
-        // Verificar que el cliente existe
         const cliente = await Cliente.findByPk(req.body.pacienteID, {
           transaction: t,
         });
@@ -649,7 +648,6 @@ class CitasController {
         }
         nuevaCita.pacienteID = req.body.pacienteID;
       } else {
-        // Para clientes temporales, NO establecer pacienteID
         nuevaCita.pacienteTemporalNombre =
           req.body.pacienteTemporalNombre.trim();
         if (req.body.pacienteTemporalTelefono) {
@@ -658,7 +656,7 @@ class CitasController {
         }
       }
 
-      // CORRECCIÓN: Remover pacienteID si es undefined/null
+      // Remover pacienteID si es undefined/null
       const datosFinales = { ...nuevaCita };
       if (
         datosFinales.pacienteID === null ||
@@ -667,72 +665,190 @@ class CitasController {
         delete datosFinales.pacienteID;
       }
 
-      // Crear la cita con los datos corregidos
+      // Crear la cita
       const citaCreada = await Cita.create(datosFinales, { transaction: t });
 
-      // Crear notificación si el barbero tiene usuario asociado
-if (barbero.usuario) {
-    try {
-        console.log("🔔 Intentando crear notificación para barbero:", barbero.usuario.id);
-        const io = req.app.get("io"); // 👈 Obtener io
-        await notificationsController.createAppointmentNotification(
-            citaCreada.id,
-            "creacion",
-            { 
-                transaction: t,
-                io: io // 👈 Pasar io explícitamente
+      // 🔔 SISTEMA DE NOTIFICACIONES MEJORADO - PARA LOS 3 ESCENARIOS
+      try {
+        const io = req.app.get("io");
+        const userSockets = req.app.get("userSockets");
+        
+        // Obtener información completa para las notificaciones
+        const citaCompleta = await Cita.findByPk(citaCreada.id, {
+          include: [
+            {
+              model: Servicio,
+              as: "servicio",
+              attributes: ["nombre"]
+            },
+            {
+              model: Barbero,
+              as: "barbero",
+              include: [{
+                model: Usuario,
+                as: "usuario",
+                attributes: ["id", "email"]
+              }],
+              attributes: ["id", "nombre"]
+            },
+            {
+              model: Cliente,
+              as: "cliente",
+              include: [{
+                model: Usuario,
+                as: "usuario",
+                attributes: ["id", "email"]
+              }],
+              attributes: ["id", "nombre"]
             }
-        );
-    } catch (notifError) {
-        console.error("❌ Error al crear notificación:", notifError);
-    }
-}
-
-
-        // ENVÍO DE EMAIL AL BARBERO - AÑADE ESTE BLOQUE
-    try {
-      // Obtener información completa para el email
-      const barberoConEmail = await Barbero.findByPk(req.body.barberoID, {
-        include: [{ model: Usuario, as: "usuario" }],
-        transaction: t
-      });
-      
-      const servicioInfo = await Servicio.findByPk(req.body.servicioID, {
-        transaction: t
-      });
-      
-      let clienteNombre = "";
-      if (req.body.pacienteID) {
-        const clienteInfo = await Cliente.findByPk(req.body.pacienteID, {
+          ],
           transaction: t
         });
-        clienteNombre = clienteInfo.nombre;
-      } else {
-        clienteNombre = req.body.pacienteTemporalNombre;
-      }
 
-      if (barberoConEmail && barberoConEmail.usuario && barberoConEmail.usuario.email) {
-        const fechaHora = new Date(`${req.body.fecha}T${hora}`);
+        // Obtener ID y ROL del usuario que crea la cita
+        const usuarioCreadorId = req.userId;
+        const usuarioCreadorRol = req.userRol; // Este dato debe venir del middleware JWT
         
-        const emailContent = correos.notificacionCitaBarbero({
-          tipo: 'creacion',
-          cliente_nombre: clienteNombre,
-          fecha_hora: fechaHora,
-          servicio_nombre: servicioInfo.nombre
+        // Formatear fecha y hora
+        const fechaFormateada = new Date(citaCompleta.fecha).toLocaleDateString("es-ES", {
+          weekday: "long",
+          day: "numeric",
+          month: "long"
         });
         
-        await sendEmail({
-          to: barberoConEmail.usuario.email,
-          subject: 'Nueva cita agendada - Barbería',
-          html: emailContent
-        });
+        const horaFormateada = citaCompleta.hora.substring(0, 5);
+        const nombreServicio = citaCompleta.servicio.nombre;
         
-        console.log('📧 Email de notificación enviado al barbero');
+        // 1. DETERMINAR QUIÉN CREÓ LA CITA Y QUIÉNES DEBEN SER NOTIFICADOS
+        let destinatarios = [];
+        
+        // Obtener todos los administradores (rol_id = 1)
+        const administradores = await Usuario.findAll({
+          where: { 
+            rol_id: 1 // ID del rol administrador
+          },
+          attributes: ["id"],
+          transaction: t
+        });
+
+        if (usuarioCreadorRol === "administrador") {
+          // Escenario 1: Administrador crea → Notificar a barbero y cliente
+          if (citaCompleta.barbero && citaCompleta.barbero.usuario) {
+            destinatarios.push({
+              userId: citaCompleta.barbero.usuario.id,
+              tipo: "barbero",
+              citaId: citaCreada.id
+            });
+          }
+          
+          if (citaCompleta.cliente && citaCompleta.cliente.usuario) {
+            destinatarios.push({
+              userId: citaCompleta.cliente.usuario.id,
+              tipo: "cliente",
+              citaId: citaCreada.id
+            });
+          }
+        } 
+        else if (usuarioCreadorRol === "barbero") {
+          // Escenario 2: Barbero crea → Notificar a administradores y cliente
+          administradores.forEach(admin => {
+            if (admin.id !== usuarioCreadorId) {
+              destinatarios.push({
+                userId: admin.id,
+                tipo: "administrador",
+                citaId: citaCreada.id
+              });
+            }
+          });
+          
+          if (citaCompleta.cliente && citaCompleta.cliente.usuario) {
+            destinatarios.push({
+              userId: citaCompleta.cliente.usuario.id,
+              tipo: "cliente",
+              citaId: citaCreada.id
+            });
+          }
+        } 
+        else if (usuarioCreadorRol === "cliente") {
+          // Escenario 3: Cliente crea → Notificar a barbero y administradores
+          if (citaCompleta.barbero && citaCompleta.barbero.usuario) {
+            destinatarios.push({
+              userId: citaCompleta.barbero.usuario.id,
+              tipo: "barbero",
+              citaId: citaCreada.id
+            });
+          }
+          
+          administradores.forEach(admin => {
+            destinatarios.push({
+              userId: admin.id,
+              tipo: "administrador",
+              citaId: citaCreada.id
+            });
+          });
+        }
+
+        // 2. ENVIAR NOTIFICACIONES A CADA DESTINATARIO
+        for (const destinatario of destinatarios) {
+          let titulo, cuerpo;
+          
+          switch (destinatario.tipo) {
+            case "barbero":
+              titulo = "📅 Nueva cita asignada";
+              cuerpo = `Tienes una cita con ${citaCompleta.cliente?.nombre || citaCompleta.pacienteTemporalNombre} para ${nombreServicio} el ${fechaFormateada} a las ${horaFormateada}`;
+              break;
+              
+            case "cliente":
+              titulo = "✅ Cita confirmada";
+              cuerpo = `Tu cita para ${nombreServicio} con ${citaCompleta.barbero.nombre} ha sido confirmada para el ${fechaFormateada} a las ${horaFormateada}`;
+              break;
+              
+            case "administrador":
+              titulo = "📋 Nueva cita en el sistema";
+              cuerpo = `Se ha creado una nueva cita para ${citaCompleta.cliente?.nombre || citaCompleta.pacienteTemporalNombre} con ${citaCompleta.barbero.nombre} el ${fechaFormateada}`;
+              break;
+          }
+
+          // Crear notificación en base de datos
+          const notificacion = await notificationsController.createNotificationInDB(
+            destinatario.userId,
+            titulo,
+            cuerpo,
+            "cita_creada",
+            destinatario.citaId,
+            { transaction: t }
+          );
+
+          // Enviar notificación por Socket.io
+          if (userSockets.has(destinatario.userId)) {
+            io.to(`user_${destinatario.userId}`).emit("nueva_notificacion", {
+              ...notificacion.toJSON(),
+              sound: true,
+              vibrate: true
+            });
+            console.log(`📤 Notificación enviada por socket a usuario ${destinatario.userId}`);
+          }
+
+          // Enviar notificación push si está disponible
+          await notificationsController.sendPushNotification({
+            userId: destinatario.userId,
+            titulo,
+            cuerpo,
+            data: {
+              type: "nueva_cita",
+              citaId: destinatario.citaId,
+              notificacionId: notificacion.id,
+              screen: "DetalleCita"
+            }
+          });
+        }
+
+        console.log(`✅ Notificaciones enviadas a ${destinatarios.length} destinatarios`);
+
+      } catch (notifError) {
+        console.error("❌ Error en el sistema de notificaciones:", notifError);
+        // No hacemos rollback por errores de notificación
       }
-    } catch (emailError) {
-      console.error('❌ Error al enviar email de notificación:', emailError);
-      // No hacemos rollback por error en el email
-    }
 
       await t.commit();
 

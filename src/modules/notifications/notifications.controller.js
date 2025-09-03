@@ -1,3 +1,4 @@
+// Archivo: src/modules/notifications/notifications.controller.js
 import { response, request } from "express";
 import { Usuario } from "../usuarios/usuarios.model.js";
 import { Notificacion } from "./notifications.model.js";
@@ -7,6 +8,7 @@ import { Servicio } from "../servicios/servicios.model.js";
 import { Barbero } from "../barberos/barberos.model.js";
 import { Cliente } from "../clientes/clientes.model.js";
 import { UsuarioToken } from "./usuarios_tokens.model.js";
+import { Op } from "sequelize";
 
 class NotificationsController {
     async saveToken(req = request, res = response) {
@@ -53,6 +55,25 @@ class NotificationsController {
         }
     }
 
+    // NUEVO MÉTODO: Crear notificación en base de datos
+    async createNotificationInDB(usuarioID, titulo, cuerpo, tipo, relacionId = null, options = {}) {
+        try {
+            const notificacion = await Notificacion.create({
+                usuarioID,
+                titulo,
+                cuerpo,
+                tipo: tipo || "sistema",
+                relacionId,
+                leido: false
+            }, options);
+
+            return notificacion;
+        } catch (error) {
+            console.error("Error creando notificación en DB:", error);
+            throw error;
+        }
+    }
+
     async createNotification(req = request, res = response) {
         try {
             const { usuarioID, titulo, cuerpo, tipo, relacionId } = req.body;
@@ -66,24 +87,25 @@ class NotificationsController {
                 });
             }
 
-            const notificacion = await Notificacion.create({
+            const notificacion = await this.createNotificationInDB(
                 usuarioID,
                 titulo,
                 cuerpo,
-                tipo: tipo || "sistema",
-                relacionId: relacionId || null,
-                leido: false
-            });
+                tipo,
+                relacionId
+            );
 
-            // 👇 Nuevo: emitir evento socket
-const io = req.app.get("io");
-io.emit("newNotification", {
-    usuarioID,
-    titulo,
-    cuerpo,
-    notificacion
-});
-
+            // 👇 Enviar por socket si está disponible
+            const io = req.app.get("io");
+            const userSockets = req.app.get("userSockets");
+            
+            if (userSockets.has(usuarioID)) {
+                io.to(`user_${usuarioID}`).emit("nueva_notificacion", {
+                    ...notificacion.toJSON(),
+                    sound: true,
+                    vibrate: true
+                });
+            }
 
             return res.status(201).json({
                 success: true,
@@ -97,123 +119,6 @@ io.emit("newNotification", {
                 message: "Error al crear notificación",
                 error: process.env.NODE_ENV === "development" ? error.message : null
             });
-        }
-    }
-        async createAppointmentNotificationForAll(citaId, usuarioCreadorId, transaction = null) {
-        try {
-            console.log("🔔 CREANDO NOTIFICACIONES PARA CITA - ID:", citaId);
-            
-            const cita = await Cita.findByPk(citaId, {
-                include: [
-                    { 
-                        model: Servicio, 
-                        as: "servicio" 
-                    },
-                    { 
-                        model: Barbero, 
-                        as: "barbero", 
-                        include: [{ 
-                            model: Usuario, 
-                            as: "usuario" 
-                        }] 
-                    },
-                    { 
-                        model: Cliente, 
-                        as: "cliente",
-                        include: [{
-                            model: Usuario,
-                            as: "usuario"
-                        }]
-                    }
-                ],
-                transaction
-            });
-
-            if (!cita) {
-                console.error("❌ Cita no encontrada");
-                return null;
-            }
-
-            const io = this.getIO();
-            const userSockets = this.getUserSockets();
-            
-            const fechaFormateada = new Date(cita.fecha).toLocaleDateString("es-ES", {
-                weekday: "long",
-                day: "numeric",
-                month: "long"
-            });
-            
-            const horaFormateada = cita.hora.substring(0, 5);
-            const nombreCliente = cita.cliente?.nombre || cita.pacienteTemporalNombre || "un cliente";
-            const nombreServicio = cita.servicio?.nombre || "servicio";
-
-            // 1. NOTIFICACIÓN PARA EL BARBERO (si existe)
-            if (cita.barbero && cita.barbero.usuario) {
-                const barberoUserId = cita.barbero.usuario.id;
-                
-                if (barberoUserId !== usuarioCreadorId) { // No notificar al creador
-                    const notificacionBarbero = await this._createNotificationForUser(
-                        barberoUserId,
-                        "📅 Nueva cita asignada",
-                        `Tienes una cita con ${nombreCliente} para ${nombreServicio} el ${fechaFormateada} a las ${horaFormateada}`,
-                        "cita_asignada",
-                        cita.id,
-                        transaction
-                    );
-
-                    // Enviar por socket
-                    this._sendSocketNotification(barberoUserId, notificacionBarbero);
-                }
-            }
-
-            // 2. NOTIFICACIÓN PARA EL CLIENTE (si tiene usuario)
-            if (cita.cliente && cita.cliente.usuario) {
-                const clienteUserId = cita.cliente.usuario.id;
-                
-                if (clienteUserId !== usuarioCreadorId) { // No notificar al creador
-                    const notificacionCliente = await this._createNotificationForUser(
-                        clienteUserId,
-                        "✅ Cita confirmada",
-                        `Tu cita para ${nombreServicio} con ${cita.barbero?.nombre || "el barbero"} ha sido confirmada para el ${fechaFormateada} a las ${horaFormateada}`,
-                        "cita_confirmada",
-                        cita.id,
-                        transaction
-                    );
-
-                    // Enviar por socket
-                    this._sendSocketNotification(clienteUserId, notificacionCliente);
-                }
-            }
-
-            // 3. NOTIFICACIÓN PARA ADMINISTRADORES (todos excepto el creador)
-            const administradores = await Usuario.findAll({ 
-                where: { 
-                    rol_id: 1, // ID de administrador
-                    id: { [Op.ne]: usuarioCreadorId } // Excluir al creador
-                },
-                transaction
-            });
-            
-            for (let admin of administradores) {
-                const notificacionAdmin = await this._createNotificationForUser(
-                    admin.id,
-                    "📋 Nueva cita en el sistema",
-                    `Se ha creado una nueva cita para ${nombreCliente} con ${cita.barbero?.nombre || "un barbero"} el ${fechaFormateada}`,
-                    "nueva_cita_sistema",
-                    cita.id,
-                    transaction
-                );
-
-                // Enviar por socket
-                this._sendSocketNotification(admin.id, notificacionAdmin);
-            }
-
-            console.log("✅ Notificaciones de cita creadas exitosamente");
-            return true;
-
-        } catch (error) {
-            console.error("❌ Error creando notificaciones de cita:", error);
-            throw error;
         }
     }
 
@@ -268,51 +173,41 @@ io.emit("newNotification", {
                 return null;
             }
 
-            console.log("📝 Creando notificación con:", {
-                usuarioID: usuarioId,
+            const notificacion = await this.createNotificationInDB(
+                usuarioId,
                 titulo,
                 cuerpo,
-                leido: false
-            });
+                "cita",
+                cita.id,
+                options
+            );
 
-            const notificacion = await Notificacion.create({
-                usuarioID: usuarioId,
-                titulo,
-                cuerpo,
-                tipo: "cita",
-                relacionId: cita.id,
-                leido: false
-            }, { transaction: options.transaction });
-
+            // 👇 Enviar por socket
             const io = req.app.get("io");
-io.emit("newNotification", {
-    usuarioID: usuarioId,
-    titulo,
-    cuerpo,
-    notificacion
-});
+            const userSockets = req.app.get("userSockets");
+            
+            if (userSockets.has(usuarioId)) {
+                io.to(`user_${usuarioId}`).emit("nueva_notificacion", {
+                    ...notificacion.toJSON(),
+                    sound: true,
+                    vibrate: true
+                });
+            }
 
             console.log("✅ Notificación creada exitosamente:", notificacion.id);
 
-            // Obtener usuario con token push
-            const usuario = await Usuario.findByPk(usuarioId);
-            
-            if (usuario?.expo_push_token) {
-                console.log("📱 Enviando push notification...");
-                await this.sendPushNotification({
-                    userId: usuario.id,
-                    titulo,
-                    cuerpo,
-                    data: {
-                        type: "cita",
-                        citaId: cita.id,
-                        notificacionId: notificacion.id,
-                        screen: "DetalleCita"
-                    }
-                });
-            } else {
-                console.log("📵 Usuario no tiene token push registrado");
-            }
+            // Enviar notificación push
+            await this.sendPushNotification({
+                userId: usuarioId,
+                titulo,
+                cuerpo,
+                data: {
+                    type: "cita",
+                    citaId: cita.id,
+                    notificacionId: notificacion.id,
+                    screen: "DetalleCita"
+                }
+            });
 
             return notificacion;
         } catch (error) {
@@ -449,6 +344,22 @@ io.emit("newNotification", {
             });
         }
     }
+    // Agrega este método para obtener administradores:
+async getAdministradores(options = {}) {
+    try {
+        const administradores = await Usuario.findAll({
+            where: { 
+                rol_id: 1 // ID del rol administrador
+            },
+            attributes: ["id", "email", "nombre"],
+            ...options
+        });
+        return administradores;
+    } catch (error) {
+        console.error("Error obteniendo administradores:", error);
+        return [];
+    }
+}
 
     async sendTestNotification(req = request, res = response) {
         try {

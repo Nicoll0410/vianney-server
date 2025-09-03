@@ -2,7 +2,7 @@
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
-import http from "http"; // 👈 necesario para socket.io
+import http from "http";
 import { Server as SocketIOServer } from "socket.io";
 
 import { jwtMiddlewares } from "./middlewares/jwt.middleware.js";
@@ -34,7 +34,7 @@ export class Server {
         this.middlewares();
         this.routes();
 
-        // 👇 MEJORAR configuración de Socket.IO
+        // 👇 Crear servidor HTTP y Socket.IO
         this.server = http.createServer(this.app);
         this.io = new SocketIOServer(this.server, {
             cors: {
@@ -43,54 +43,51 @@ export class Server {
                     "http://localhost:3000",
                     "http://localhost:8081",
                     "http://localhost:19006",
-                    "exp://192.168.*.*:19000" // Para Expo Go
+                    "exp://192.168.1.X:19000" // Agrega tu IP local para desarrollo móvil
                 ],
                 methods: ["GET", "POST", "PUT", "DELETE"],
                 credentials: true
-            },
-            transports: ['websocket', 'polling'] // Soporte para más transportes
+            }
         });
+
+        // Guardar instancia global de io para usar en controladores
+        this.app.set("io", this.io);
 
         // Almacenar conexiones de usuarios
         this.userSockets = new Map();
 
-        // Eventos de conexión MEJORADOS
+        // Eventos de conexión mejorados
         this.io.on("connection", (socket) => {
             console.log("🟢 Cliente conectado:", socket.id);
 
-            // Registrar usuario con su socket ID
-            socket.on("register-user", (userId) => {
-                this.userSockets.set(userId.toString(), socket.id);
-                console.log(`👤 Usuario ${userId} registrado con socket ${socket.id}`);
-                
-                // Confirmar registro
-                socket.emit("user-registered", { success: true, userId });
+            // Unir usuario a su sala personal cuando se autentica
+            socket.on("join-user-room", (userId) => {
+                socket.join(`user_${userId}`);
+                this.userSockets.set(userId, socket.id);
+                console.log(`👤 Usuario ${userId} unido a su sala (Socket: ${socket.id})`);
             });
 
             // Manejar desconexión
-            socket.on("disconnect", (reason) => {
-                console.log("🔴 Cliente desconectado:", socket.id, "Razón:", reason);
-                
-                // Eliminar usuario de la lista
+            socket.on("disconnect", () => {
+                // Eliminar usuario de la lista de conexiones
                 for (let [userId, socketId] of this.userSockets.entries()) {
                     if (socketId === socket.id) {
                         this.userSockets.delete(userId);
-                        console.log(`👤 Usuario ${userId} removido de conexiones`);
+                        console.log(`👤 Usuario ${userId} desconectado`);
                         break;
                     }
                 }
+                console.log("🔴 Cliente desconectado:", socket.id);
             });
 
-            // Manejar errores de conexión
-            socket.on("connect_error", (error) => {
-                console.error("❌ Error de conexión Socket.io:", error);
+            // Manejar errores de socket
+            socket.on("error", (error) => {
+                console.error("❌ Error de Socket:", error);
             });
         });
 
-        // Hacer io y userSockets disponibles globalmente
-        this.app.set("io", this.io);
+        // Guardar instancia de userSockets para uso global
         this.app.set("userSockets", this.userSockets);
-
 
         // Sincronizar modelos y levantar servidor
         syncAllModels()
@@ -108,17 +105,17 @@ export class Server {
     }
 
     middlewares() {
-        // Configuración de CORS CORREGIDA
+        // Configuración de CORS
         const allowedOrigins = [
             "https://nmbarberapp-seven.vercel.app",
             "http://localhost:3000",
             "http://localhost:8081",
-            "http://localhost:19006"
+            "http://localhost:19006",
+            "exp://192.168.1.X:19000" // Agrega tu IP local
         ];
 
         this.app.use(cors({
             origin: function (origin, callback) {
-                // Permitir requests sin origin (como mobile apps, postman, curl)
                 if (!origin) return callback(null, true);
                 
                 if (allowedOrigins.indexOf(origin) !== -1) {
