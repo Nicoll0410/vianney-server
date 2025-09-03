@@ -56,23 +56,6 @@ export class Server {
         this.io.on("connection", (socket) => {
             console.log("🟢 Cliente conectado:", socket.id);
 
-                // Escuchar cuando un usuario se une con su información
-    socket.on("join-user-room", (userData) => {
-        if (!userData || !userData.userId || !userData.rol) return;
-        
-        // Unirse a room según el tipo de usuario
-        if (userData.rol === 'administrador') {
-            socket.join('administradores');
-            console.log(`👑 Administrador ${userData.userId} unido a sala`);
-        } else if (userData.rol === 'barbero') {
-            socket.join(`barbero_${userData.userId}`);
-            console.log(`✂️ Barbero ${userData.userId} unido a sala`);
-        } else if (userData.rol === 'cliente') {
-            socket.join(`cliente_${userData.userId}`);
-            console.log(`👤 Cliente ${userData.userId} unido a sala`);
-        }
-    });
-
             socket.on("disconnect", () => {
                 console.log("🔴 Cliente desconectado:", socket.id);
             });

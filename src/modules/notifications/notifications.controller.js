@@ -168,12 +168,12 @@ io.emit("newNotification", {
             }, { transaction: options.transaction });
 
             const io = req.app.get("io");
-        io.to(`barbero_${usuarioId}`).emit("newNotification", {
-            usuarioID: usuarioId,
-            titulo,
-            cuerpo,
-            notificacion
-        });
+io.emit("newNotification", {
+    usuarioID: usuarioId,
+    titulo,
+    cuerpo,
+    notificacion
+});
 
             console.log("✅ Notificación creada exitosamente:", notificacion.id);
 
