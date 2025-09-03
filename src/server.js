@@ -240,7 +240,7 @@ export class Server {
         this.app.use("/notifications", notificationsRouter);
         this.app.use("/barberos", barberosRouter);
         this.app.use("/clientes", clientesRouter);
-        app.use("/compras", comprasRouter);
+        this.app.use("/compras", comprasRouter);
         this.app.use("/dashboard", dashboardRouter);
         this.app.use("/citas", citasRouter);
         this.app.use("/ventas", RouterVentas);
