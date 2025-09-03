@@ -99,6 +99,123 @@ io.emit("newNotification", {
             });
         }
     }
+        async createAppointmentNotificationForAll(citaId, usuarioCreadorId, transaction = null) {
+        try {
+            console.log("🔔 CREANDO NOTIFICACIONES PARA CITA - ID:", citaId);
+            
+            const cita = await Cita.findByPk(citaId, {
+                include: [
+                    { 
+                        model: Servicio, 
+                        as: "servicio" 
+                    },
+                    { 
+                        model: Barbero, 
+                        as: "barbero", 
+                        include: [{ 
+                            model: Usuario, 
+                            as: "usuario" 
+                        }] 
+                    },
+                    { 
+                        model: Cliente, 
+                        as: "cliente",
+                        include: [{
+                            model: Usuario,
+                            as: "usuario"
+                        }]
+                    }
+                ],
+                transaction
+            });
+
+            if (!cita) {
+                console.error("❌ Cita no encontrada");
+                return null;
+            }
+
+            const io = this.getIO();
+            const userSockets = this.getUserSockets();
+            
+            const fechaFormateada = new Date(cita.fecha).toLocaleDateString("es-ES", {
+                weekday: "long",
+                day: "numeric",
+                month: "long"
+            });
+            
+            const horaFormateada = cita.hora.substring(0, 5);
+            const nombreCliente = cita.cliente?.nombre || cita.pacienteTemporalNombre || "un cliente";
+            const nombreServicio = cita.servicio?.nombre || "servicio";
+
+            // 1. NOTIFICACIÓN PARA EL BARBERO (si existe)
+            if (cita.barbero && cita.barbero.usuario) {
+                const barberoUserId = cita.barbero.usuario.id;
+                
+                if (barberoUserId !== usuarioCreadorId) { // No notificar al creador
+                    const notificacionBarbero = await this._createNotificationForUser(
+                        barberoUserId,
+                        "📅 Nueva cita asignada",
+                        `Tienes una cita con ${nombreCliente} para ${nombreServicio} el ${fechaFormateada} a las ${horaFormateada}`,
+                        "cita_asignada",
+                        cita.id,
+                        transaction
+                    );
+
+                    // Enviar por socket
+                    this._sendSocketNotification(barberoUserId, notificacionBarbero);
+                }
+            }
+
+            // 2. NOTIFICACIÓN PARA EL CLIENTE (si tiene usuario)
+            if (cita.cliente && cita.cliente.usuario) {
+                const clienteUserId = cita.cliente.usuario.id;
+                
+                if (clienteUserId !== usuarioCreadorId) { // No notificar al creador
+                    const notificacionCliente = await this._createNotificationForUser(
+                        clienteUserId,
+                        "✅ Cita confirmada",
+                        `Tu cita para ${nombreServicio} con ${cita.barbero?.nombre || "el barbero"} ha sido confirmada para el ${fechaFormateada} a las ${horaFormateada}`,
+                        "cita_confirmada",
+                        cita.id,
+                        transaction
+                    );
+
+                    // Enviar por socket
+                    this._sendSocketNotification(clienteUserId, notificacionCliente);
+                }
+            }
+
+            // 3. NOTIFICACIÓN PARA ADMINISTRADORES (todos excepto el creador)
+            const administradores = await Usuario.findAll({ 
+                where: { 
+                    rol_id: 1, // ID de administrador
+                    id: { [Op.ne]: usuarioCreadorId } // Excluir al creador
+                },
+                transaction
+            });
+            
+            for (let admin of administradores) {
+                const notificacionAdmin = await this._createNotificationForUser(
+                    admin.id,
+                    "📋 Nueva cita en el sistema",
+                    `Se ha creado una nueva cita para ${nombreCliente} con ${cita.barbero?.nombre || "un barbero"} el ${fechaFormateada}`,
+                    "nueva_cita_sistema",
+                    cita.id,
+                    transaction
+                );
+
+                // Enviar por socket
+                this._sendSocketNotification(admin.id, notificacionAdmin);
+            }
+
+            console.log("✅ Notificaciones de cita creadas exitosamente");
+            return true;
+
+        } catch (error) {
+            console.error("❌ Error creando notificaciones de cita:", error);
+            throw error;
+        }
+    }
 
     async createAppointmentNotification(citaId, tipo, options = {}) {
         try {

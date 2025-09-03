@@ -34,7 +34,7 @@ export class Server {
         this.middlewares();
         this.routes();
 
-        // 👇 Crear servidor HTTP y Socket.IO
+        // 👇 MEJORAR configuración de Socket.IO
         this.server = http.createServer(this.app);
         this.io = new SocketIOServer(this.server, {
             cors: {
@@ -42,24 +42,55 @@ export class Server {
                     "https://nmbarberapp-seven.vercel.app",
                     "http://localhost:3000",
                     "http://localhost:8081",
-                    "http://localhost:19006"
+                    "http://localhost:19006",
+                    "exp://192.168.*.*:19000" // Para Expo Go
                 ],
                 methods: ["GET", "POST", "PUT", "DELETE"],
                 credentials: true
-            }
+            },
+            transports: ['websocket', 'polling'] // Soporte para más transportes
         });
 
-        // Guardar instancia global de io para usar en controladores
-        this.app.set("io", this.io);
+        // Almacenar conexiones de usuarios
+        this.userSockets = new Map();
 
-        // Eventos de conexión
+        // Eventos de conexión MEJORADOS
         this.io.on("connection", (socket) => {
             console.log("🟢 Cliente conectado:", socket.id);
 
-            socket.on("disconnect", () => {
-                console.log("🔴 Cliente desconectado:", socket.id);
+            // Registrar usuario con su socket ID
+            socket.on("register-user", (userId) => {
+                this.userSockets.set(userId.toString(), socket.id);
+                console.log(`👤 Usuario ${userId} registrado con socket ${socket.id}`);
+                
+                // Confirmar registro
+                socket.emit("user-registered", { success: true, userId });
+            });
+
+            // Manejar desconexión
+            socket.on("disconnect", (reason) => {
+                console.log("🔴 Cliente desconectado:", socket.id, "Razón:", reason);
+                
+                // Eliminar usuario de la lista
+                for (let [userId, socketId] of this.userSockets.entries()) {
+                    if (socketId === socket.id) {
+                        this.userSockets.delete(userId);
+                        console.log(`👤 Usuario ${userId} removido de conexiones`);
+                        break;
+                    }
+                }
+            });
+
+            // Manejar errores de conexión
+            socket.on("connect_error", (error) => {
+                console.error("❌ Error de conexión Socket.io:", error);
             });
         });
+
+        // Hacer io y userSockets disponibles globalmente
+        this.app.set("io", this.io);
+        this.app.set("userSockets", this.userSockets);
+
 
         // Sincronizar modelos y levantar servidor
         syncAllModels()
