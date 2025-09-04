@@ -18,20 +18,20 @@ export class CitasAVentasJob {
                 const fechaActual = format(ahora, 'yyyy-MM-dd');
                 const horaActual = format(ahora, 'HH:mm:ss');
 
-                // Buscar citas confirmadas que ya pasaron su hora
+                // Buscar citas confirmadas que ya pasaron su hora FINAL
                 const citasParaConvertir = await Cita.findAll({
                     where: {
                         estado: 'Confirmada',
                         [Op.or]: [
                             {
                                 fecha: {
-                                    [Op.lt]: fechaActual,
+                                    [Op.lt]: fechaActual, // Días anteriores
                                 },
                             },
                             {
                                 [Op.and]: [
-                                    { fecha: fechaActual },
-                                    { hora: { [Op.lte]: horaActual } }, // Cambiado de horaFin a hora
+                                    { fecha: fechaActual }, // Mismo día
+                                    { horaFin: { [Op.lte]: horaActual } }, // ← CORREGIDO: horaFin en lugar de hora
                                 ],
                             },
                         ],
