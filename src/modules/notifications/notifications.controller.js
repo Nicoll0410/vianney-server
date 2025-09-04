@@ -105,7 +105,7 @@ class NotificationsController {
     options = {}
   ) {
     try {
-      const io = require("../../server").io;
+      const io = req.app.get("io"); // ✅ Correcto - obtener io del request
 
       const cita = await Cita.findByPk(citaId, {
         include: [

@@ -68,7 +68,7 @@ Cita.belongsTo(Barbero, { foreignKey: "barberoID", as: "barbero" });
 
 /* CLIENTES Y CITAS */
 Cliente.hasMany(Cita, { foreignKey: "pacienteID", as: "citas" });
-Cita.belongsTo(Cliente, { foreignKey: "pacienteID", as: "cliente" }); // ✅ Corrección aplicada aquí
+Cita.belongsTo(Cliente, { foreignKey: "pacienteID", as: "cliente", constraints: false }); // ✅ Corrección aplicada aquí
 
     Cita.hasOne(Venta, {
         foreignKey: 'citaID',
