@@ -56,20 +56,13 @@ export class Server {
       console.log("🟢 Cliente conectado:", socket.id);
 
       // Unir al usuario a su sala personal
-socket.on("unir_usuario", (usuarioId) => {
-  // ✅ VALIDAR que usuarioId no sea undefined o null
-  if (!usuarioId) {
-    console.log("❌ Error: usuarioId es undefined en unir_usuario");
-    socket.emit("error_unir_usuario", { message: "ID de usuario inválido" });
-    return;
-  }
-  
-  socket.join(`usuario_${usuarioId}`);
-  console.log(`👤 Usuario ${usuarioId} unido a su sala personal`);
-  
-  // Confirmar unión
-  socket.emit("usuario_unido", { success: true, usuarioId });
-});
+      socket.on("unir_usuario", (usuarioId) => {
+        socket.join(`usuario_${usuarioId}`);
+        console.log(`👤 Usuario ${usuarioId} unido a su sala personal`);
+
+        // Confirmar unión
+        socket.emit("usuario_unido", { success: true, usuarioId });
+      });
 
   // Debugging de eventos
   socket.onAny((event, ...args) => {
