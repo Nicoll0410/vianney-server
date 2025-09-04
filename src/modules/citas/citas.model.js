@@ -163,6 +163,10 @@ const task = cron.schedule(
       const fechaActual = format(ahora, "yyyy-MM-dd");
       const horaActual = format(ahora, "HH:mm:ss");
 
+      // Añadir 5 minutos de tolerancia para evitar completar antes de tiempo
+      const ahoraConTolerancia = new Date(ahora.getTime() + 5 * 60000);
+      const horaActualConTolerancia = format(ahoraConTolerancia, "HH:mm:ss");
+
       // Buscar citas confirmadas que ya pasaron su hora
       const citasParaCompletar = await Cita.findAll({
         where: {
@@ -176,7 +180,7 @@ const task = cron.schedule(
             {
               [Op.and]: [
                 { fecha: fechaActual },
-                { horaFin: { [Op.lte]: horaActual } },
+                { horaFin: { [Op.lte]: horaActualConTolerancia } },
               ],
             },
           ],

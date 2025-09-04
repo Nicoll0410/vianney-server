@@ -15,8 +15,12 @@ export class CitasAVentasJob {
                 console.log('🔄 Ejecutando job de conversión de citas a ventas...');
                 
                 const ahora = new Date();
-                const fechaActual = format(ahora, 'yyyy-MM-dd');
-                const horaActual = format(ahora, 'HH:mm:ss');
+                // CORRECCIÓN: Ajustar por zona horaria Colombia (-5 horas)
+                const offsetColombia = -5 * 60; // 5 horas en minutos
+                const ahoraColombia = new Date(ahora.getTime() + offsetColombia * 60000);
+
+                const fechaActual = format(ahoraColombia, 'yyyy-MM-dd');
+                const horaActual = format(ahoraColombia, 'HH:mm:ss');
 
                 // Buscar citas confirmadas que ya pasaron su hora FINAL
                 const citasParaConvertir = await Cita.findAll({
@@ -82,7 +86,9 @@ export class CitasAVentasJob {
                             fecha_cita: cita.fecha,
                             hora_cita: cita.hora,
                             total: (cita.servicio?.precio || cita.precio || 0),
-                            estado: 'Completada'
+                            estado: 'Completada',
+                            // CORRECCIÓN: Usar fecha actual ajustada
+                            fecha_venta: ahoraColombia
                         });
 
                         // Actualizar la cita

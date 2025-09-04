@@ -51,11 +51,16 @@ Venta.init(
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
     },
-    fecha_venta: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: DataTypes.NOW,
-    },
+fecha_venta: {
+  type: DataTypes.DATE,
+  allowNull: false,
+  defaultValue: DataTypes.NOW,
+  // CORRECCIÓN: Especificar que se guarde en zona horaria local
+  get() {
+    const rawValue = this.getDataValue('fecha_venta');
+    return rawValue ? new Date(rawValue.getTime() - (rawValue.getTimezoneOffset() * 60000)) : null;
+  }
+},
     fecha_cita: {
       type: DataTypes.DATEONLY,
       allowNull: false,
