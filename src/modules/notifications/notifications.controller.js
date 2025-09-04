@@ -197,19 +197,19 @@ class NotificationsController {
 
         // Emitir por socket
         io.to(`usuario_${destinatarioId}`).emit("nueva_notificacion", {
-          id: notificacion.id,
-          usuarioID: destinatario.id, // ✅ Asegurar que viene el ID correcto
-          titulo: titulo,
-          cuerpo: cuerpo,
-          tipo: "cita_creada",
-          relacionId: citaCompleta.id,
-          leido: false,
-          createdAt: notificacion.createdAt,
-          updatedAt: notificacion.updatedAt,
-          sound: true, // ✅ Forzar sonido
-          cita: citaCompleta, // ✅ Datos adicionales
+          ...notificacion.toJSON(),
+          sound: true,
+          cita: cita,
         });
-        console.log("🔊 Notificación enviada con sonido a usuario:", destinatario.id);
+
+        // 🎯 ENVIAR EVENTO ESPECIAL PARA ACTUALIZAR BADGE
+        io.to(`usuario_${destinatarioId}`).emit("actualizar_badge", {
+          usuarioID: destinatarioId,
+          incrementar: true,
+          cantidad: 1
+        });
+
+        console.log("✅ Notificación y badge enviados a usuario:", destinatarioId);
 
         // Push notification
         const usuarioDestino = await Usuario.findByPk(destinatarioId, {
@@ -235,7 +235,6 @@ class NotificationsController {
     }
   }
 
-  // Modifica el método enviarNotificacionesCita para asegurar que se envíe a los destinatarios correctos
   async enviarNotificacionesCita(cita, usuarioCreador, options = {}) {
     try {
       console.log("🔔 Enviando notificaciones de cita para:", cita.id);
@@ -365,15 +364,24 @@ class NotificationsController {
             { transaction: options.transaction }
           );
 
-          // ✅ ENVIAR POR SOCKET - Esto es lo más importante
+          // ✅ ENVIAR POR SOCKET - Notificación completa
           io.to(`usuario_${destinatario.usuario.id}`).emit(
             "nueva_notificacion",
             {
               ...notificacion.toJSON(),
-              sound: true, // ✅ Forzar sonido
+              sound: true,
               cita: citaCompleta,
             }
           );
+
+          // ✅ ENVIAR EVENTO ESPECIAL PARA ACTUALIZAR BADGE
+          io.to(`usuario_${destinatario.usuario.id}`).emit("actualizar_badge", {
+            usuarioID: destinatario.usuario.id,
+            incrementar: true,
+            cantidad: 1
+          });
+
+          console.log("✅ Notificación y badge enviados a usuario:", destinatario.usuario.id);
 
           // ✅ Enviar push notification
           if (destinatario.usuario.expo_push_token) {
