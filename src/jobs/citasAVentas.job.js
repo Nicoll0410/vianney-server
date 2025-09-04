@@ -119,3 +119,6 @@ export class CitasAVentasJob {
         console.log('✅ Job de conversión de citas a ventas programado');
     }
 }
+
+// Al final del archivo, añade:
+export default CitasAVentasJob;
