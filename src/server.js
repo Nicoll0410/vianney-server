@@ -27,7 +27,7 @@ import { notificationsRouter } from "./modules/notifications/notifications.route
 import { JobsManager } from "./jobs/index.js";
 
 // Importar la migración
-import { up as migrationUp } from "./migrations/add-recordatorio-enviado-to-citas.js";
+import { up as migrationUp } from "../migrations/add-recordatorio-enviado-to-citas.js";
 
 export class Server {
   constructor() {
