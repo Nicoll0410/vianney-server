@@ -193,65 +193,6 @@ envioCredenciales({ codigo, email, password, verificationLink }) {
       </div>`;
     }
   }
-    /* ╔══════════════════════════════════════════════╗
-     ║ 6. RECORDATORIOS DE CITAS                    ║
-     ╚══════════════════════════════════════════════╝ */
-  recordatorioCitaCliente({ cliente_nombre, servicio_nombre, barbero_nombre, fecha, hora, direccion, duracion }) {
-    return `
-    <div style="font-family:Nunito,Arial,sans-serif;background:#f4f4f4;padding:40px 0;">
-      <table align="center" cellpadding="0" cellspacing="0" style="max-width:500px;background:#ffffff;padding:32px 24px;border-radius:8px;">
-        <tr>
-          <td style="text-align:center;padding:20px;">
-            <img src="https://i.postimg.cc/pVqZ9LTF/new-York-Barber.jpg" alt="Logo" width="200">
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:20px;">
-            <h2 style="font-size:24px;margin:0 0 10px;">Recordatorio de cita</h2>
-            <p style="margin:10px 0;">Hola ${cliente_nombre},</p>
-            <p style="margin:10px 0;">Te recordamos que tienes una cita programada en 30 minutos:</p>
-            <ul style="margin:10px 0;padding-left:20px;">
-              <li><strong>Servicio:</strong> ${servicio_nombre}</li>
-              <li><strong>Barbero:</strong> ${barbero_nombre}</li>
-              <li><strong>Fecha y hora:</strong> ${fecha} a las ${hora}</li>
-              <li><strong>Duración:</strong> ${duracion}</li>
-              <li><strong>Dirección:</strong> ${direccion}</li>
-            </ul>
-            <p style="margin:10px 0;">¡Te esperamos puntualmente!</p>
-            <p style="margin:10px 0;">Saludos,<br>El equipo de New York Barber</p>
-          </td>
-        </tr>
-      </table>
-    </div>`;
-  }
-
-  recordatorioCitaBarbero({ barbero_nombre, cliente_nombre, servicio_nombre, fecha, hora, telefono_cliente, duracion }) {
-    return `
-    <div style="font-family:Nunito,Arial,sans-serif;background:#f4f4f4;padding:40px 0;">
-      <table align="center" cellpadding="0" cellspacing="0" style="max-width:500px;background:#ffffff;padding:32px 24px;border-radius:8px;">
-        <tr>
-          <td style="text-align:center;padding:20px;">
-            <img src="https://i.postimg.cc/pVqZ9LTF/new-York-Barber.jpg" alt="Logo" width="200">
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:20px;">
-            <h2 style="font-size:24px;margin:0 0 10px;">Recordatorio de cita</h2>
-            <p style="margin:10px 0;">Hola ${barbero_nombre},</p>
-            <p style="margin:10px 0;">Te recordamos que tienes una cita programada en 30 minutos:</p>
-            <ul style="margin:10px 0;padding-left:20px;">
-              <li><strong>Cliente:</strong> ${cliente_nombre}</li>
-              <li><strong>Servicio:</strong> ${servicio_nombre}</li>
-              <li><strong>Fecha y hora:</strong> ${fecha} a las ${hora}</li>
-              <li><strong>Duración:</strong> ${duracion}</li>
-              <li><strong>Teléfono cliente:</strong> ${telefono_cliente || 'No disponible'}</li>
-            </ul>
-            <p style="margin:10px 0;">¡Prepárate para recibir al cliente!</p>
-          </td>
-        </tr>
-      </table>
-    </div>`;
-  }
 }
 
 export const correos = new Correos();

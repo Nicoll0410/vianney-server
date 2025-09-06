@@ -1079,32 +1079,14 @@ class CitasController {
     const t = await sequelize.transaction();
     try {
       const { id } = req.params;
-      const { motivo } = req.body;
-      
       const cita = await Cita.findByPk(id, {
         transaction: t,
         include: [
           {
             model: Barbero,
             as: "barbero",
-            include: [{ 
-              model: Usuario, 
-              attributes: ["id", "email", "estaVerificado"] 
-            }],
+            include: [{ model: Usuario, as: "usuario" }],
           },
-          {
-            model: Cliente,
-            as: "cliente",
-            include: [{ 
-              model: Usuario, 
-              attributes: ["id", "email", "estaVerificado"] 
-            }],
-          },
-          {
-            model: Servicio,
-            as: "servicio",
-            attributes: ["id", "nombre"]
-          }
         ],
       });
 
@@ -1120,24 +1102,23 @@ class CitasController {
         });
       }
 
-      // Crear fecha/hora de la cita considerando zona horaria
-      const ahora = new Date();
-      const fechaCita = new Date(`${cita.fecha}T${cita.hora}:00-05:00`);
-      const diferenciaMs = fechaCita.getTime() - ahora.getTime();
-      const diferenciaMinutos = diferenciaMs / (1000 * 60);
+    // CORRECCIÓN: Crear fecha/hora de la cita considerando zona horaria
+    const ahora = new Date();
+    const fechaCita = new Date(`${cita.fecha}T${cita.hora}:00-05:00`); // ← Añadir zona horaria
 
-      // Permitir cancelar hasta 5 minutos antes de la cita
-      if (diferenciaMinutos < 5) {
-        await t.rollback();
-        return res.status(400).json({
-          mensaje: "Solo se pueden cancelar citas con al menos 5 minutos de anticipación",
-        });
-      }
+    // CORRECCIÓN: Comparar con la hora actual considerando la diferencia
+    const diferenciaMs = fechaCita.getTime() - ahora.getTime();
+    const diferenciaMinutos = diferenciaMs / (1000 * 60);
 
-      await cita.update({ 
-        estado: "Cancelada",
-        motivo_cancelacion: motivo || "Cancelado por el usuario"
-      }, { transaction: t });
+    // Permitir cancelar hasta 5 minutos antes de la cita
+    if (diferenciaMinutos < 5) {
+      await t.rollback();
+      return res.status(400).json({
+        mensaje: "Solo se pueden cancelar citas con al menos 5 minutos de anticipación",
+      });
+    }
+
+      await cita.update({ estado: "Cancelada" }, { transaction: t });
 
       try {
         await notificationsController.createAppointmentNotification(
@@ -1146,62 +1127,47 @@ class CitasController {
           { transaction: t }
         );
       } catch (notifError) {
-        console.error("Error al crear notificación de cancelación:", notifError);
+        console.error(
+          "Error al crear notificación de cancelación:",
+          notifError
+        );
       }
 
-      // ENVÍO DE EMAILS DE CANCELACIÓN
       try {
-        const fechaHora = new Date(`${cita.fecha}T${cita.hora}`);
-        const fechaFormateada = format(fechaHora, "d 'de' MMMM 'de' yyyy", { locale: es });
-        const horaFormateada = format(fechaHora, "hh:mm a", { locale: es });
-
-        // Email al cliente
-        if (cita.cliente?.usuario?.email && cita.cliente.usuario.estaVerificado) {
-          const emailContent = correos.citaCancelada({
-            fecha: fechaFormateada,
-            hora: horaFormateada,
-            razon: motivo || "No especificado"
-          });
-
-          await sendEmail({
-            to: cita.cliente.usuario.email,
-            subject: 'Cancelación de cita - NY Barber',
-            html: emailContent
-          });
-
-          console.log(`📧 Email de cancelación enviado al cliente: ${cita.cliente.usuario.email}`);
+        let clienteNombre = "";
+        if (cita.pacienteID) {
+          clienteNombre = cita.cliente ? cita.cliente.nombre : "Cliente";
+        } else {
+          clienteNombre = cita.pacienteTemporalNombre || "Cliente temporal";
         }
 
-        // Email al barbero (excepto si fue él quien canceló)
-        const usuarioActual = req.user;
-        if (cita.barbero?.usuario?.email && cita.barbero.usuario.estaVerificado && 
-            usuarioActual.id !== cita.barbero.usuario.id) {
+        if (cita.barbero && cita.barbero.usuario && cita.barbero.usuario.email) {
+          const fechaHora = new Date(`${cita.fecha}T${cita.hora}`);
+          const motivo = req.body.motivo || "No especificado";
           
           const emailContent = correos.notificacionCitaBarbero({
             tipo: 'cancelacion',
-            cliente_nombre: cita.cliente.nombre,
+            cliente_nombre: clienteNombre,
             fecha_hora: fechaHora,
-            servicio_nombre: cita.servicio.nombre,
-            motivo_cancelacion: motivo || "No especificado"
+            servicio_nombre: cita.servicio ? cita.servicio.nombre : "Servicio",
+            motivo_cancelacion: motivo
           });
-
+          
           await sendEmail({
             to: cita.barbero.usuario.email,
-            subject: 'Cita cancelada - NY Barber',
+            subject: 'Cita cancelada - Barbería',
             html: emailContent
           });
-
-          console.log(`📧 Email de cancelación enviado al barbero: ${cita.barbero.usuario.email}`);
         }
       } catch (emailError) {
-        console.error('❌ Error al enviar emails de cancelación:', emailError);
-        // No hacemos rollback por error en emails
+        console.error('❌ Error al enviar email de cancelación:', emailError);
       }
 
       await t.commit();
 
       return res.json({
-        mensaje: "Cita cancelada correctamente. El horario ahora está disponible.",
+        mensaje:
+          "Cita cancelada correctamente. El horario ahora está disponible.",
         cita,
       });
     } catch (error) {
@@ -1213,7 +1179,6 @@ class CitasController {
       });
     }
   }
-
 
   async markAllAsRead(req = request, res = response) {
     try {

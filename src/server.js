@@ -2,7 +2,7 @@
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
-import http from "http";
+import http from "http"; // 👈 necesario para socket.io
 import { Server as SocketIOServer } from "socket.io";
 
 import { jwtMiddlewares } from "./middlewares/jwt.middleware.js";
@@ -26,9 +26,6 @@ import { syncAllModels } from "./syncAll.js";
 import { notificationsRouter } from "./modules/notifications/notifications.route.js";
 import { JobsManager } from "./jobs/index.js";
 
-// Importar la migración
-import { up as migrationUp } from "../migrations/add-recordatorio-enviado-to-citas.js";
-
 export class Server {
   constructor() {
     this.app = express();
@@ -46,69 +43,56 @@ export class Server {
           "http://localhost:3000",
           "http://localhost:8081",
           "http://localhost:19006",
-          "http://localhost:19000"
+          "http://localhost:19000" // ← Agrega Expo web
         ],
         methods: ["GET", "POST", "PUT", "DELETE"],
         credentials: true,
       },
-      transports: ['websocket', 'polling']
+      transports: ['websocket' , 'polling']
     });
 
     // Eventos de conexión
-    this.io.on("connection", (socket) => {
-      console.log("🟢 Cliente conectado:", socket.id);
+this.io.on("connection", (socket) => {
+  console.log("🟢 Cliente conectado:", socket.id);
 
-      // Debuggear todos los eventos
-      socket.onAny((event, ...args) => {
-        console.log(`📦 Socket Event: ${event}`, args);
-      });
+  // Debuggear todos los eventos
+  socket.onAny((event, ...args) => {
+    console.log(`📦 Socket Event: ${event}`, args);
+  });
 
-      // Unir al usuario a su sala personal
-      socket.on("unir_usuario", (usuarioId) => {
-        console.log(`👤 Uniendo usuario ${usuarioId} a sala: usuario_${usuarioId}`);
-        socket.join(`usuario_${usuarioId}`);
-        
-        // Confirmar unión
-        socket.emit("usuario_unido", { 
-          success: true, 
-          usuarioId,
-          room: `usuario_${usuarioId}`
-        });
-        
-        console.log(`✅ Usuario ${usuarioId} unido correctamente`);
-      });
-
-      socket.on("disconnect", (reason) => {
-        console.log("🔴 Cliente desconectado:", socket.id, "Razón:", reason);
-      });
+  // Unir al usuario a su sala personal
+  socket.on("unir_usuario", (usuarioId) => {
+    console.log(`👤 Uniendo usuario ${usuarioId} a sala: usuario_${usuarioId}`);
+    socket.join(`usuario_${usuarioId}`);
+    
+    // Confirmar unión
+    socket.emit("usuario_unido", { 
+      success: true, 
+      usuarioId,
+      room: `usuario_${usuarioId}`
     });
+    
+    console.log(`✅ Usuario ${usuarioId} unido correctamente`);
+  });
 
-    // Sincronizar modelos, ejecutar migración y levantar servidor
-    this.initializeServer();
-  }
+  socket.on("disconnect", (reason) => {
+    console.log("🔴 Cliente desconectado:", socket.id, "Razón:", reason);
+  });
+});
 
-  async initializeServer() {
-    try {
-      // Primero sincronizar modelos
-      await syncAllModels();
-      console.log('✅ Modelos sincronizados');
-      
-      // Luego ejecutar la migración
-      console.log('🔄 Ejecutando migración...');
-      await migrationUp();
-      console.log('✅ Migración completada');
-      
-      // Iniciar jobs
-      JobsManager.iniciarTodos();
-      
-      // Finalmente levantar el servidor
-      this.server.listen(process.env.PORT, "0.0.0.0", () =>
-        console.log(`🚀 Servidor ejecutándose en el puerto ${process.env.PORT}`)
-      );
-    } catch (error) {
-      console.error("❌ Error al inicializar el servidor:", error);
-      process.exit(1);
-    }
+    // Sincronizar modelos y levantar servidor
+    syncAllModels()
+      .then(() => {
+        JobsManager.iniciarTodos();
+        this.server.listen(process.env.PORT, "0.0.0.0", () =>
+          console.log(
+            `🚀 Servidor ejecutándose en el puerto ${process.env.PORT}`
+          )
+        );
+      })
+      .catch((err) => {
+        console.error("❌ Error al sincronizar modelos:", err);
+      });
   }
 
   middlewares() {
