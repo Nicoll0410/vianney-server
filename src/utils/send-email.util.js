@@ -1,62 +1,33 @@
 import nodemailer from "nodemailer";
-import "dotenv/config.js";
+    import "dotenv/config.js";
 
-// ✅ CORRECTO: createTransport (SIN la 'e' final)
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-  port: Number(process.env.EMAIL_PORT) || 587,
-  secure: process.env.EMAIL_SECURE === "true",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  // Configuraciones optimizadas
-  tls: {
-    rejectUnauthorized: false
-  },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 10000
-});
+    const transporter = nodemailer.createTransport({
+      host: process.env.EMAIL_HOST,
+      port: Number(process.env.EMAIL_PORT),
+      secure: process.env.EMAIL_SECURE === "true", // SSL 465
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
 
-// Verificar conexión al iniciar
-transporter.verify(function (error, success) {
-  if (error) {
-    console.error("❌ Error SMTP:", error);
-  } else {
-    console.log("✅ SMTP listo para enviar correos");
-  }
-});
-
-// Función simplificada y funcional
-export async function sendEmail({ to, subject, text, html }) {
-  try {
-    const mailOptions = {
-      from: `"NY Barber" <${process.env.EMAIL_USER}>`,
-      to,
-      subject,
-      text,
-      html,
-      headers: {
-        'X-Priority': '3',
-        'X-Mailer': 'NodeMailer'
+    transporter.verify((err) => {
+      if (err) {
+        console.error("❌  Error SMTP:", err);
+      } else {
+        console.log("📧  SMTP listo para enviar correos");
       }
-    };
+    });
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log("✅ Correo enviado a:", to);
-    return { success: true, messageId: info.messageId };
-    
-  } catch (error) {
-    console.error("❌ Error enviando email:", error);
-    
-    // Reintento simple
-    if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
-      console.log("🔄 Reintentando envío...");
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      return sendEmail({ to, subject, text, html });
+    export async function sendEmail({ to, subject, text, html }) {
+      const mailOptions = {
+        from: `"NY Barber" <${process.env.EMAIL_USER}>`,
+        to,
+        subject,
+        text,
+        html,
+      };
+
+      await transporter.sendMail(mailOptions);
+      console.log("✅  Correo enviado a:", to);
     }
-    
-    return { success: false, error: error.message };
-  }
-}
