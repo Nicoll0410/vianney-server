@@ -12,7 +12,6 @@ import { Cliente } from "../clientes/clientes.model.js";
 import { Barbero } from "../barberos/barberos.model.js";
 import jwt from "jsonwebtoken"
 import { Rol } from "../roles/roles.model.js";
-import { emailQueue } from "../../jobs/email-queue.js";
 
 class UsuarioController {
     async get(req = request, res = response) {
@@ -180,15 +179,16 @@ async create(req = request, res = response) {
     const verificationLink = `${process.env.FRONTEND_URL}/verify-email?email=${encodeURIComponent(email)}&code=${codigo}`;
 
     // Enviar email de verificación
-await sendEmailQueued({
-  to: email,
-  subject: "Verifica tu cuenta en NY Barber", 
-  html: correos.confirmarIdentidad({ 
-    codigo, 
-    email,
-    verificationLink
-  }),
-});
+    await sendEmail({ 
+      to: email, 
+      subject: "Verifica tu cuenta en NY Barber", 
+      html: correos.envioCredenciales({ 
+        codigo, 
+        email, 
+        password: plainPassword,
+        verificationLink
+      }) 
+    });
 
     return res.status(201).json({
       success: true,
