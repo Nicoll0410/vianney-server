@@ -242,9 +242,11 @@ class AuthController {
 }
 
 
-  async resendVerificationCode(req = request, res = response) {
+async resendVerificationCode(req = request, res = response) {
   try {
     const { email } = req.body;
+    console.log("📧 Reenviando código a:", email);
+    
     const usuario = await Usuario.findOne({ where: { email } });
     
     if (!usuario) {
@@ -262,12 +264,27 @@ class AuthController {
     const codigo = customAlphabet("0123456789", 6)();
     await CodigosVerificacion.create({ usuarioID: usuario.id, codigo });
     
-    // Envía el email
-    await sendEmail({
+    // Generar link de verificación
+    const verificationLink = `${process.env.FRONTEND_URL}/verify-email?email=${encodeURIComponent(email)}&code=${codigo}`;
+    
+    // Envía el email con manejo de errores
+    const emailResult = await sendEmail({
       to: email,
-      subject: "Confirmación de identidad",
-      html: correos.confirmarIdentidad({ codigo, email }),
+      subject: "Confirmación de identidad - NY Barber",
+      html: correos.confirmarIdentidad({ 
+        codigo, 
+        email,
+        verificationLink 
+      }),
     });
+    
+    if (!emailResult.success) {
+      console.error("Error enviando email:", emailResult.error);
+      return res.status(500).json({ 
+        success: false,
+        mensaje: "Error al enviar el email. Por favor intenta nuevamente." 
+      });
+    }
     
     return res.json({ 
       success: true,
