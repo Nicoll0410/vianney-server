@@ -30,7 +30,9 @@ export class Database {
 
           /*  👇  ver todas las queries en consola  👇  */
           logging: console.log,
+
         /*  👇  fija la zona horaria a Colombia  👇  */
+          timezone: "-05:00",
           dialectOptions: { timezone: "-05:00" },
         });
 
@@ -48,4 +50,5 @@ export class Database {
   }
 }
 
+export const database  = new Database();
 export const sequelize = database.getDatabase();
