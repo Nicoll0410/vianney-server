@@ -2,10 +2,8 @@
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
-import http from "http";
+import http from "http"; // 👈 necesario para socket.io
 import { Server as SocketIOServer } from "socket.io";
-import helmet from "helmet";
-import rateLimit from "express-rate-limit";
 
 import { jwtMiddlewares } from "./middlewares/jwt.middleware.js";
 import { proveedoresRouter } from "./modules/proveedores/proveedores.route.js";
@@ -45,42 +43,42 @@ export class Server {
           "http://localhost:3000",
           "http://localhost:8081",
           "http://localhost:19006",
-          "http://localhost:19000"
+          "http://localhost:19000" // ← Agrega Expo web
         ],
         methods: ["GET", "POST", "PUT", "DELETE"],
         credentials: true,
       },
-      transports: ['websocket', 'polling']
+      transports: ['websocket' , 'polling']
     });
 
     // Eventos de conexión
-    this.io.on("connection", (socket) => {
-      console.log("🟢 Cliente conectado:", socket.id);
+this.io.on("connection", (socket) => {
+  console.log("🟢 Cliente conectado:", socket.id);
 
-      // Debuggear todos los eventos
-      socket.onAny((event, ...args) => {
-        console.log(`📦 Socket Event: ${event}`, args);
-      });
+  // Debuggear todos los eventos
+  socket.onAny((event, ...args) => {
+    console.log(`📦 Socket Event: ${event}`, args);
+  });
 
-      // Unir al usuario a su sala personal
-      socket.on("unir_usuario", (usuarioId) => {
-        console.log(`👤 Uniendo usuario ${usuarioId} a sala: usuario_${usuarioId}`);
-        socket.join(`usuario_${usuarioId}`);
-        
-        // Confirmar unión
-        socket.emit("usuario_unido", { 
-          success: true, 
-          usuarioId,
-          room: `usuario_${usuarioId}`
-        });
-        
-        console.log(`✅ Usuario ${usuarioId} unido correctamente`);
-      });
-
-      socket.on("disconnect", (reason) => {
-        console.log("🔴 Cliente desconectado:", socket.id, "Razón:", reason);
-      });
+  // Unir al usuario a su sala personal
+  socket.on("unir_usuario", (usuarioId) => {
+    console.log(`👤 Uniendo usuario ${usuarioId} a sala: usuario_${usuarioId}`);
+    socket.join(`usuario_${usuarioId}`);
+    
+    // Confirmar unión
+    socket.emit("usuario_unido", { 
+      success: true, 
+      usuarioId,
+      room: `usuario_${usuarioId}`
     });
+    
+    console.log(`✅ Usuario ${usuarioId} unido correctamente`);
+  });
+
+  socket.on("disconnect", (reason) => {
+    console.log("🔴 Cliente desconectado:", socket.id, "Razón:", reason);
+  });
+});
 
     // Sincronizar modelos y levantar servidor
     syncAllModels()
@@ -98,38 +96,7 @@ export class Server {
   }
 
   middlewares() {
-    // 🔒 Helmet.js para seguridad de headers
-    this.app.use(helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", "data:", "https:"],
-          connectSrc: ["'self'", "https://nmbarberapp-seven.vercel.app"],
-        },
-      },
-      crossOriginEmbedderPolicy: false
-    }));
-
-    // 🔒 Rate limiting general
-    const limiter = rateLimit({
-      windowMs: 15 * 60 * 1000,
-      max: 100,
-      message: "Demasiadas solicitudes desde esta IP, intenta nuevamente en 15 minutos."
-    });
-    this.app.use(limiter);
-
-    // 🔒 Rate limiting más estricto para auth
-    const authLimiter = rateLimit({
-      windowMs: 15 * 60 * 1000,
-      max: 5,
-      message: "Demasiados intentos de login, intenta más tarde."
-    });
-    this.app.use("/auth/login", authLimiter);
-    this.app.use("/auth/login-client", authLimiter);
-
-    // Configuración de CORS
+    // Configuración de CORS CORREGIDA
     const allowedOrigins = [
       "https://nmbarberapp-seven.vercel.app",
       "http://localhost:3000",
@@ -140,7 +107,9 @@ export class Server {
     this.app.use(
       cors({
         origin: function (origin, callback) {
+          // Permitir requests sin origin (como mobile apps, postman, curl)
           if (!origin) return callback(null, true);
+
           if (allowedOrigins.indexOf(origin) !== -1) {
             return callback(null, true);
           } else {
