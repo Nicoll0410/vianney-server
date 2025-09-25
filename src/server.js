@@ -52,43 +52,49 @@ export class Server {
     });
 
     // Eventos de conexión
-this.io.on("connection", (socket) => {
-  console.log("🟢 Cliente conectado:", socket.id);
+    this.io.on("connection", (socket) => {
+      console.log("🟢 Cliente conectado:", socket.id);
 
-  // Debuggear todos los eventos
-  socket.onAny((event, ...args) => {
-    console.log(`📦 Socket Event: ${event}`, args);
-  });
+      // Debuggear todos los eventos
+      socket.onAny((event, ...args) => {
+        console.log(`📦 Socket Event: ${event}`, args);
+      });
 
-  // Unir al usuario a su sala personal
-  socket.on("unir_usuario", (usuarioId) => {
-    console.log(`👤 Uniendo usuario ${usuarioId} a sala: usuario_${usuarioId}`);
-    socket.join(`usuario_${usuarioId}`);
-    
-    // Confirmar unión
-    socket.emit("usuario_unido", { 
-      success: true, 
-      usuarioId,
-      room: `usuario_${usuarioId}`
+      // Unir al usuario a su sala personal
+      socket.on("unir_usuario", (usuarioId) => {
+        console.log(`👤 Uniendo usuario ${usuarioId} a sala: usuario_${usuarioId}`);
+        socket.join(`usuario_${usuarioId}`);
+        
+        // Confirmar unión
+        socket.emit("usuario_unido", { 
+          success: true, 
+          usuarioId,
+          room: `usuario_${usuarioId}`
+        });
+        
+        console.log(`✅ Usuario ${usuarioId} unido correctamente`);
+      });
+
+      socket.on("disconnect", (reason) => {
+        console.log("🔴 Cliente desconectado:", socket.id, "Razón:", reason);
+      });
     });
-    
-    console.log(`✅ Usuario ${usuarioId} unido correctamente`);
-  });
-
-  socket.on("disconnect", (reason) => {
-    console.log("🔴 Cliente desconectado:", socket.id, "Razón:", reason);
-  });
-});
 
     // Sincronizar modelos y levantar servidor
     syncAllModels()
       .then(() => {
         JobsManager.iniciarTodos();
-        this.server.listen(process.env.PORT, "0.0.0.0", () =>
-          console.log(
-            `🚀 Servidor ejecutándose en el puerto ${process.env.PORT}`
-          )
-        );
+        
+        // ✅ CONFIGURACIÓN DE TIMEOUTS PARA RENDER
+        this.server.timeout = 300000; // 5 minutos
+        this.server.keepAliveTimeout = 120000; // 2 minutos
+        
+        this.server.listen(process.env.PORT, "0.0.0.0", () => {
+          console.log(`🚀 Servidor ejecutándose en el puerto ${process.env.PORT}`);
+          
+          // ✅ INICIAR KEEP-ALIVE AUTOMÁTICO
+          this.iniciarKeepAlive();
+        });
       })
       .catch((err) => {
         console.error("❌ Error al sincronizar modelos:", err);
@@ -157,7 +163,35 @@ this.io.on("connection", (socket) => {
   }
 
   routes() {
-    // Rutas públicas
+    // ✅ ENDPOINTS PÚBLICOS PARA HEALTH CHECKS (AGREGADOS AL PRINCIPIO)
+    this.app.get('/health', (req, res) => {
+      res.json({ 
+        status: 'ok', 
+        message: 'Servidor funcionando',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+      });
+    });
+
+    this.app.get('/ping', (req, res) => {
+      res.send('pong');
+    });
+
+    this.app.get('/', (req, res) => {
+      res.json({ 
+        message: 'API Barbería funcionando',
+        version: '1.0',
+        timestamp: new Date().toISOString(),
+        endpoints: {
+          health: '/health',
+          ping: '/ping',
+          auth: '/auth',
+          public: '/public'
+        }
+      });
+    });
+
+    // Rutas públicas existentes
     this.app.use("/auth", authRouter);
     this.app.use("/public", publicRouter);
     this.app.use("/usuarios", usuarioRouter);
@@ -181,7 +215,7 @@ this.io.on("connection", (socket) => {
     this.app.use("/citas", citasRouter);
     this.app.use("/ventas", RouterVentas);
 
-    // Ruta de health check para verificar CORS
+    // Ruta de health check existente
     this.app.get("/health-check", (req, res) => {
       res.json({
         status: "OK",
@@ -189,5 +223,45 @@ this.io.on("connection", (socket) => {
         timestamp: new Date().toISOString(),
       });
     });
+
+    // ✅ MANEJO DE ERRORES PARA RUTAS NO ENCONTRADAS
+    this.app.use('*', (req, res) => {
+      res.status(404).json({
+        error: 'Ruta no encontrada',
+        path: req.originalUrl,
+        availableEndpoints: ['/health', '/ping', '/auth', '/public']
+      });
+    });
+  }
+
+  // ✅ MÉTODO KEEP-ALIVE AUTOMÁTICO
+  iniciarKeepAlive() {
+    console.log('🔄 Iniciando keep-alive automático...');
+    
+    const urls = [
+      'https://barber-server-6kuo.onrender.com/health',
+      'https://barber-server-6kuo.onrender.com/ping',
+      'https://barber-server-6kuo.onrender.com/health-check'
+    ];
+    
+    // Función para hacer ping
+    const hacerPing = async () => {
+      for (const url of urls) {
+        try {
+          const response = await fetch(url);
+          console.log(`✅ Keep-alive ${new Date().toLocaleTimeString()}: ${url} - Status: ${response.status}`);
+        } catch (error) {
+          console.log(`⚠️ Keep-alive falló ${new Date().toLocaleTimeString()}: ${url} - Error: ${error.message}`);
+        }
+      }
+    };
+    
+    // Ejecutar inmediatamente
+    hacerPing();
+    
+    // Programar cada 4 minutos
+    setInterval(hacerPing, 4 * 60 * 1000);
+    
+    console.log('✅ Keep-alive programado cada 4 minutos');
   }
 }
