@@ -149,12 +149,6 @@ this.io.on("connection", (socket) => {
       next();
     });
 
-      this.app.use((req, res, next) => {
-    req.setTimeout(300000); // 5 minutos para requests largos
-    res.setTimeout(300000);
-    next();
-  });
-
     this.app.use(express.json({ limit: "50mb" }));
     this.app.use(express.urlencoded({ extended: true, limit: "10mb" }));
     this.app.use(morgan("combined"));
@@ -188,23 +182,12 @@ this.io.on("connection", (socket) => {
     this.app.use("/ventas", RouterVentas);
 
     // Ruta de health check para verificar CORS
-  // ✅ AGREGAR ESTOS HEALTH CHECKS:
-  this.app.get('/health', (req, res) => {
-    res.status(200).json({
-      status: 'OK', 
-      timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV
+    this.app.get("/health-check", (req, res) => {
+      res.json({
+        status: "OK",
+        message: "CORS configurado correctamente",
+        timestamp: new Date().toISOString(),
+      });
     });
-  });
-
-  this.app.get('/health/db', async (req, res) => {
-    try {
-      const db = require('./database.js');
-      await db.sequelize.authenticate();
-      res.json({ database: 'connected' });
-    } catch (error) {
-      res.status(500).json({ database: 'error', error: error.message });
-    }
-  });
-}
+  }
 }
