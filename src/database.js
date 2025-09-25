@@ -29,18 +29,11 @@ export class Database {
           dialectModule: mySQLDialect,
 
           /*  👇  ver todas las queries en consola  👇  */
-          logging: false,
+          logging: console.log,
 
         /*  👇  fija la zona horaria a Colombia  👇  */
           timezone: "-05:00",
           dialectOptions: { timezone: "-05:00" },
-
-            pool: {
-    max: 10,       // máximo conexiones simultáneas
-    min: 0,
-    acquire: 30000,// 30s para obtener conexión
-    idle: 10000    // cierra conexión inactiva
-  }
         });
 
         await this.database.authenticate();
