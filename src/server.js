@@ -2,7 +2,7 @@
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
-import http from "http";
+import http from "http"; // 👈 necesario para socket.io
 import { Server as SocketIOServer } from "socket.io";
 
 import { jwtMiddlewares } from "./middlewares/jwt.middleware.js";
@@ -34,7 +34,7 @@ export class Server {
     this.middlewares();
     this.routes();
 
-    // Crear servidor HTTP y Socket.IO
+    // 👇 Crear servidor HTTP y Socket.IO
     this.server = http.createServer(this.app);
     this.io = new SocketIOServer(this.server, {
       cors: {
@@ -43,12 +43,12 @@ export class Server {
           "http://localhost:3000",
           "http://localhost:8084",
           "http://localhost:19006",
-          "http://localhost:19000"
+          "http://localhost:19000" // ← Agrega Expo web
         ],
         methods: ["GET", "POST", "PUT", "DELETE"],
         credentials: true,
       },
-      transports: ['websocket', 'polling']
+      transports: ['websocket' , 'polling']
     });
 
     // Eventos de conexión
@@ -81,71 +81,28 @@ export class Server {
     });
 
     // Sincronizar modelos y levantar servidor
-    this.initializeServer();
-  }
-
-  async initializeServer() {
-    try {
-      // Sincronizar modelos primero
-      await syncAllModels();
-      
-      // Inicializar roles después de sincronizar
-      await this.initializeRoles();
-      
-      // Iniciar jobs
-      JobsManager.iniciarTodos();
-      
-      // Configurar timeouts para Render
-      this.server.timeout = 300000;
-      this.server.keepAliveTimeout = 120000;
-      
-      // Iniciar servidor
-      this.server.listen(process.env.PORT, "0.0.0.0", () => {
-        console.log(`🚀 Servidor ejecutándose en el puerto ${process.env.PORT}`);
-      });
-      
-    } catch (err) {
-      console.error("❌ Error al inicializar el servidor:", err);
-      process.exit(1);
-    }
-  }
-
-  async initializeRoles() {
-    try {
-      console.log("🔄 Inicializando roles...");
-      
-      // Importar el modelo Rol
-      const { Rol } = await import('./modules/roles/roles.model.js');
-      
-      const rolesBasicos = [
-        { nombre: 'Cliente', descripcion: 'Usuario cliente del sistema' },
-        { nombre: 'Admin', descripcion: 'Administrador del sistema' },
-        { nombre: 'Barbero', descripcion: 'Barbero del establecimiento' }
-      ];
-
-      for (const roleData of rolesBasicos) {
-        const [rol, created] = await Rol.findOrCreate({
-          where: { nombre: roleData.nombre },
-          defaults: roleData
-        });
+    syncAllModels()
+      .then(() => {
+        JobsManager.iniciarTodos();
         
-        if (created) {
-          console.log(`✅ Rol creado: ${roleData.nombre}`);
-        } else {
-          console.log(`✅ Rol ya existente: ${roleData.nombre}`);
-        }
-      }
-      
-      console.log("🎉 Roles inicializados correctamente");
-      
-    } catch (error) {
-      console.error("❌ Error inicializando roles:", error);
-      throw error;
-    }
+        // ✅ CONFIGURACIÓN DE TIMEOUTS PARA RENDER
+        this.server.timeout = 300000; // 5 minutos
+        this.server.keepAliveTimeout = 120000; // 2 minutos
+        
+        this.server.listen(process.env.PORT, "0.0.0.0", () => {
+          console.log(`🚀 Servidor ejecutándose en el puerto ${process.env.PORT}`);
+          
+          // ✅ INICIAR KEEP-ALIVE AUTOMÁTICO
+          // this.iniciarKeepAlive();
+        });
+      })
+      .catch((err) => {
+        console.error("❌ Error al sincronizar modelos:", err);
+      });
   }
 
   middlewares() {
-    // Configuración de CORS
+    // Configuración de CORS CORREGIDA
     const allowedOrigins = [
       "https://vianneythebarber.vercel.app",
       "http://localhost:3000",
@@ -206,7 +163,7 @@ export class Server {
   }
 
   routes() {
-    // ✅ ENDPOINTS PÚBLICOS PARA HEALTH CHECKS
+    // ✅ ENDPOINTS PÚBLICOS PARA HEALTH CHECKS (AGREGADOS AL PRINCIPIO)
     this.app.get('/health', (req, res) => {
       res.json({ 
         status: 'ok', 
@@ -232,16 +189,6 @@ export class Server {
           public: '/public'
         }
       });
-    });
-
-    // ✅ ENDPOINT TEMPORAL PARA INICIALIZAR ROLES (SOLO DESARROLLO)
-    this.app.post('/init-roles', async (req, res) => {
-      try {
-        await this.initializeRoles();
-        res.json({ success: true, message: 'Roles inicializados correctamente' });
-      } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-      }
     });
 
     // Rutas públicas existentes
@@ -282,7 +229,7 @@ export class Server {
       res.status(404).json({
         error: 'Ruta no encontrada',
         path: req.originalUrl,
-        availableEndpoints: ['/health', '/ping', '/auth', '/public', '/init-roles']
+        availableEndpoints: ['/health', '/ping', '/auth', '/public']
       });
     });
   }
