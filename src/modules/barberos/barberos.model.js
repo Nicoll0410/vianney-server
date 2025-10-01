@@ -55,8 +55,8 @@ async function initializeAdmin() {
 
         const adminRole = await Rol.findOne({ where: { nombre: "Administrador" } });
         const userInfo = {
-            email: "nybarber2025@gmail.com",
-            password: await passwordUtils.encrypt("nybarber17"),
+            email: "vianneythebarber@gmail.com",
+            password: await passwordUtils.encrypt("vianneythebarber25"),
             estaVerificado: true,
             rolID: adminRole.id
         };

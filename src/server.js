@@ -39,11 +39,8 @@ export class Server {
     this.io = new SocketIOServer(this.server, {
       cors: {
         origin: [
-          "https://nmbarberapp-seven.vercel.app",
           "http://localhost:3000",
-          "http://localhost:8081",
-          "http://localhost:19006",
-          "http://localhost:19000" // ← Agrega Expo web
+          "http://localhost:8084",
         ],
         methods: ["GET", "POST", "PUT", "DELETE"],
         credentials: true,
@@ -104,10 +101,8 @@ export class Server {
   middlewares() {
     // Configuración de CORS CORREGIDA
     const allowedOrigins = [
-      "https://nmbarberapp-seven.vercel.app",
       "http://localhost:3000",
-      "http://localhost:8081",
-      "http://localhost:19006",
+      "http://localhost:8084",
     ];
 
     this.app.use(
@@ -232,36 +227,5 @@ export class Server {
         availableEndpoints: ['/health', '/ping', '/auth', '/public']
       });
     });
-  }
-
-  // ✅ MÉTODO KEEP-ALIVE AUTOMÁTICO
-  iniciarKeepAlive() {
-    console.log('🔄 Iniciando keep-alive automático...');
-    
-    const urls = [
-      'https://barber-server-6kuo.onrender.com/health',
-      'https://barber-server-6kuo.onrender.com/ping',
-      'https://barber-server-6kuo.onrender.com/health-check'
-    ];
-    
-    // Función para hacer ping
-    const hacerPing = async () => {
-      for (const url of urls) {
-        try {
-          const response = await fetch(url);
-          console.log(`✅ Keep-alive ${new Date().toLocaleTimeString()}: ${url} - Status: ${response.status}`);
-        } catch (error) {
-          console.log(`⚠️ Keep-alive falló ${new Date().toLocaleTimeString()}: ${url} - Error: ${error.message}`);
-        }
-      }
-    };
-    
-    // Ejecutar inmediatamente
-    hacerPing();
-    
-    // Programar cada 4 minutos
-    setInterval(hacerPing, 4 * 60 * 1000);
-    
-    console.log('✅ Keep-alive programado cada 4 minutos');
   }
 }
