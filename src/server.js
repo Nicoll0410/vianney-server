@@ -39,8 +39,11 @@ export class Server {
     this.io = new SocketIOServer(this.server, {
       cors: {
         origin: [
+          "https://vianneythebarber.vercel.app",
           "http://localhost:3000",
           "http://localhost:8084",
+          "http://localhost:19006",
+          "http://localhost:19000" // ← Agrega Expo web
         ],
         methods: ["GET", "POST", "PUT", "DELETE"],
         credentials: true,
@@ -101,8 +104,10 @@ export class Server {
   middlewares() {
     // Configuración de CORS CORREGIDA
     const allowedOrigins = [
+      "https://vianneythebarber.vercel.app",
       "http://localhost:3000",
       "http://localhost:8084",
+      "http://localhost:19006",
     ];
 
     this.app.use(
