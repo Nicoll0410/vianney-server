@@ -170,7 +170,7 @@ class AuthController {
 
       await sendEmail({
         to: email,
-        subject: "Verifica tu cuenta en NY Barber",
+        subject: "Verifica tu cuenta en VIANNEY THE BARBER",
         html: correos.confirmarIdentidad({ 
           codigo, 
           email,

@@ -181,7 +181,7 @@ async create(req = request, res = response) {
     // Enviar email de verificación
     await sendEmail({ 
       to: email, 
-      subject: "Verifica tu cuenta en NY Barber", 
+      subject: "Verifica tu cuenta en VIANNEY THE BARBER", 
       html: correos.envioCredenciales({ 
         codigo, 
         email, 
