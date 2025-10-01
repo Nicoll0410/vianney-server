@@ -18,7 +18,7 @@ confirmarIdentidad({ codigo, email, verificationLink }) {
   <table align="center" cellpadding="0" cellspacing="0" style="max-width:500px;background:#ffffff;padding:32px 24px;border-radius:8px;">
     <tr>
       <td style="text-align:center;padding:20px;">
-        <img src="https://i.postimg.cc/pVqZ9LTF/new-York-Barber.jpg" alt="Logo" width="200">
+        <img src="https://i.postimg.cc/x1S3rTr1/vianney.png" alt="Logo" width="200">
       </td>
     </tr>
     <tr>
@@ -33,7 +33,7 @@ confirmarIdentidad({ codigo, email, verificationLink }) {
             Verificar cuenta
           </a>
         </p>
-        <p style="margin:10px 0;">Gracias,<br>El equipo de New York Barber</p>
+        <p style="margin:10px 0;">Gracias,<br>El equipo de Vianney The Barber</p>
       </td>
     </tr>
   </table>
@@ -55,7 +55,7 @@ confirmarIdentidad({ codigo, email, verificationLink }) {
       <table align="center" cellpadding="0" cellspacing="0" style="max-width:500px;background:#ffffff;padding:32px 24px;border-radius:8px;">
         <tr>
           <td style="text-align:center;padding:20px;">
-            <img src="https://i.postimg.cc/pVqZ9LTF/new-York-Barber.jpg" alt="Logo" width="200">
+            <img src="https://i.postimg.cc/x1S3rTr1/vianney.png" alt="Logo" width="200">
           </td>
         </tr>
         <tr>
@@ -65,7 +65,7 @@ confirmarIdentidad({ codigo, email, verificationLink }) {
             <p style="margin:10px 0;">Utiliza este código en la app para restablecer tu contraseña:</p>
             <div style="text-align:center;margin:20px 0;font-size:24px;font-weight:bold;color:#333;">${codigo}</div>
             <p style="margin:10px 0;">Si no solicitaste esto, ignora el correo.</p>
-            <p style="margin:10px 0;">Gracias,<br>El equipo de New York Barber</p>
+            <p style="margin:10px 0;">Gracias,<br>El equipo de Vianney The Barber</p>
           </td>
         </tr>
       </table>
@@ -81,7 +81,7 @@ envioCredenciales({ codigo, email, password, verificationLink }) {
   <table align="center" cellpadding="0" cellspacing="0" style="max-width:500px;background:#ffffff;padding:32px 24px;border-radius:8px;">
     <tr>
       <td style="text-align:center;padding:20px;">
-        <img src="https://i.postimg.cc/pVqZ9LTF/new-York-Barber.jpg" alt="Logo" width="200">
+        <img src="https://i.postimg.cc/x1S3rTr1/vianney.png" alt="Logo" width="200">
       </td>
     </tr>
     <tr>
@@ -100,7 +100,7 @@ envioCredenciales({ codigo, email, password, verificationLink }) {
           <strong>Email:</strong> ${email}<br>
           <strong>Contraseña:</strong> ${password}
         </p>
-        <p style="margin:10px 0;">Gracias,<br>El equipo de New York Barber</p>
+        <p style="margin:10px 0;">Gracias,<br>El equipo de Vianney The Barber</p>
       </td>
     </tr>
   </table>
@@ -119,7 +119,7 @@ envioCredenciales({ codigo, email, password, verificationLink }) {
       <table align="center" cellpadding="0" cellspacing="0" style="max-width:500px;background:#ffffff;padding:32px 24px;border-radius:8px;">
         <tr>
           <td style="text-align:center;padding:20px;">
-            <img src="https://i.postimg.cc/pVqZ9LTF/new-York-Barber.jpg" alt="Logo" width="200">
+            <img src="https://i.postimg.cc/x1S3rTr1/vianney.png" alt="Logo" width="200">
           </td>
         </tr>
         <tr>
@@ -128,7 +128,7 @@ envioCredenciales({ codigo, email, password, verificationLink }) {
             <p style="margin:10px 0;">Tu cita del ${fechaFormateada} a las ${horaFormateada} ha sido cancelada.</p>
             <p style="margin:10px 0;">Razón: ${razon}</p>
             <p style="margin:10px 0;">Si tienes dudas, contáctanos.</p>
-            <p style="margin:10px 0;">Gracias,<br>El equipo de New York Barber</p>
+            <p style="margin:10px 0;">Gracias,<br>El equipo de Vianney The Barber</p>
           </td>
         </tr>
       </table>
@@ -147,7 +147,7 @@ envioCredenciales({ codigo, email, password, verificationLink }) {
         <table align="center" cellpadding="0" cellspacing="0" style="max-width:500px;background:#ffffff;padding:32px 24px;border-radius:8px;">
           <tr>
             <td style="text-align:center;padding:20px;">
-              <img src="https://i.postimg.cc/pVqZ9LTF/new-York-Barber.jpg" alt="Logo" width="200">
+              <img src="https://i.postimg.cc/x1S3rTr1/vianney.png" alt="Logo" width="200">
             </td>
           </tr>
           <tr>
@@ -161,7 +161,7 @@ envioCredenciales({ codigo, email, password, verificationLink }) {
                 <li><strong>Servicio:</strong> ${servicio_nombre}</li>
               </ul>
               <p style="margin:10px 0;">Por favor, revisa tu agenda para confirmar disponibilidad.</p>
-              <p style="margin:10px 0;">Gracias,<br>El equipo de New York Barber</p>
+              <p style="margin:10px 0;">Gracias,<br>El equipo de Vianney The Barber</p>
             </td>
           </tr>
         </table>
@@ -172,7 +172,7 @@ envioCredenciales({ codigo, email, password, verificationLink }) {
         <table align="center" cellpadding="0" cellspacing="0" style="max-width:500px;background:#ffffff;padding:32px 24px;border-radius:8px;">
           <tr>
             <td style="text-align:center;padding:20px;">
-              <img src="https://i.postimg.cc/pVqZ9LTF/new-York-Barber.jpg" alt="Logo" width="200">
+              <img src="https://i.postimg.cc/x1S3rTr1/vianney.png" alt="Logo" width="200">
             </td>
           </tr>
           <tr>
@@ -186,7 +186,7 @@ envioCredenciales({ codigo, email, password, verificationLink }) {
                 <li><strong>Servicio:</strong> ${servicio_nombre}</li>
                 <li><strong>Motivo:</strong> ${motivo_cancelacion || 'No especificado'}</li>
               </ul>
-              <p style="margin:10px 0;">Gracias,<br>El equipo de New York Barber</p>
+              <p style="margin:10px 0;">Gracias,<br>El equipo de Vianney The Barber</p>
             </td>
           </tr>
         </table>
