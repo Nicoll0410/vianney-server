@@ -90,7 +90,7 @@ export class Server {
           console.log(`🚀 Servidor ejecutándose en el puerto ${process.env.PORT}`);
           
           // ✅ INICIAR KEEP-ALIVE AUTOMÁTICO
-          this.iniciarKeepAlive();
+          // this.iniciarKeepAlive();
         });
       })
       .catch((err) => {
