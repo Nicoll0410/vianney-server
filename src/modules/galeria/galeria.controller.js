@@ -1,10 +1,9 @@
 /* =========================================================
    src/modules/galeria/galeria.controller.js
-   VERSIÓN SIN RELACIONES - Funciona sin Foreign Key
+   CONTROLADO OPTIMIZADO - Manejo mejorado de base64
    ========================================================= */
 import { request, response } from "express";
 import { Galeria } from "./galeria.model.js";
-import { filtros } from "../../utils/filtros.util.js";
 import { Op } from "sequelize";
 
 class GaleriaController {
@@ -37,7 +36,6 @@ class GaleriaController {
           ["orden", "ASC"],
           ["createdAt", "DESC"],
         ],
-        // SIN include - no traemos info del usuario
       });
 
       const total = items.length;
@@ -133,7 +131,7 @@ class GaleriaController {
       const { titulo, descripcion, tipo, url, miniatura, orden, etiquetas, activo } =
         req.body;
 
-      // Validaciones
+      // Validaciones básicas
       if (!titulo || !url || !tipo) {
         return res.status(400).json({
           success: false,
@@ -148,13 +146,15 @@ class GaleriaController {
         });
       }
 
-      // Verificar que el usuario está autenticado
+      // Validar que el usuario está autenticado
       if (!req.user || !req.user.id) {
         return res.status(401).json({
           success: false,
           mensaje: "Usuario no autenticado",
         });
       }
+
+      // ✅ ELIMINADA validación de longitud - ahora acepta base64 largos
 
       // Crear el elemento
       const nuevoItem = await Galeria.create({
@@ -176,6 +176,15 @@ class GaleriaController {
       });
     } catch (error) {
       console.error("Error en galeria.create:", error);
+      
+      // Manejo específico de errores de base de datos
+      if (error.name === 'SequelizeDatabaseError') {
+        return res.status(400).json({
+          success: false,
+          mensaje: "Error de base de datos. Contacta al administrador.",
+        });
+      }
+      
       return res.status(400).json({
         success: false,
         mensaje: error.message,
@@ -206,6 +215,8 @@ class GaleriaController {
           mensaje: "El tipo debe ser 'imagen' o 'video'",
         });
       }
+
+      // ✅ ELIMINADA validación de longitud - ahora acepta base64 largos
 
       // Actualizar campos
       const updateData = {};
@@ -266,7 +277,7 @@ class GaleriaController {
   /* ─────────────── Reordenar elementos ─────────────── */
   async reordenar(req = request, res = response) {
     try {
-      const { items } = req.body; // Array de { id, orden }
+      const { items } = req.body;
 
       if (!Array.isArray(items)) {
         return res.status(400).json({
@@ -275,7 +286,6 @@ class GaleriaController {
         });
       }
 
-      // Actualizar el orden de cada elemento
       const promises = items.map((item) =>
         Galeria.update({ orden: item.orden }, { where: { id: item.id } })
       );
