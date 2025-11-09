@@ -1,27 +1,31 @@
 /* =========================================================
    src/modules/galeria/galeria.route.js
-   RUTAS FINALES - Sin validaciones de longitud
+   RUTAS DEFINITIVAS - Con autenticación
    ========================================================= */
 import { Router } from "express";
 import { galeriaController } from "./galeria.controller.js";
 
 export const galeriaRouter = Router();
 
-// ✅ Ruta PÚBLICA para obtener solo elementos activos (para clientes)
+// Middleware de autenticación
+const requireAuth = (req, res, next) => {
+  if (!req.user || !req.user.id) {
+    return res.status(401).json({
+      success: false,
+      mensaje: "Usuario no autenticado"
+    });
+  }
+  next();
+};
+
+// ✅ Ruta PÚBLICA (sin autenticación)
 galeriaRouter.get("/public", galeriaController.getActivos);
 
-// 🔒 Rutas PROTEGIDAS (requieren autenticación)
-galeriaRouter.get("/", galeriaController.get);
-
-galeriaRouter.get("/:id", galeriaController.findByPk);
-
-// ✅ IMPORTANTE: ELIMINAR TODOS LOS MIDDLEWARES que validan longitud
-galeriaRouter.post("/", galeriaController.create);
-
-galeriaRouter.put("/:id", galeriaController.update);
-
-galeriaRouter.delete("/:id", galeriaController.delete);
-
-galeriaRouter.post("/reordenar", galeriaController.reordenar);
-
-galeriaRouter.patch("/:id/toggle-activo", galeriaController.toggleActivo);
+// 🔒 Todas estas rutas REQUIEREN autenticación
+galeriaRouter.get("/", requireAuth, galeriaController.get);
+galeriaRouter.get("/:id", requireAuth, galeriaController.findByPk);
+galeriaRouter.post("/", requireAuth, galeriaController.create);
+galeriaRouter.put("/:id", requireAuth, galeriaController.update);
+galeriaRouter.delete("/:id", requireAuth, galeriaController.delete);
+galeriaRouter.post("/reordenar", requireAuth, galeriaController.reordenar);
+galeriaRouter.patch("/:id/toggle-activo", requireAuth, galeriaController.toggleActivo);
