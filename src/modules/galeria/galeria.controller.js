@@ -1,10 +1,9 @@
 /* =========================================================
    src/modules/galeria/galeria.controller.js
-   Controlador para gestionar la galería de fotos y videos
+   VERSIÓN SIN RELACIONES - Funciona sin Foreign Key
    ========================================================= */
 import { request, response } from "express";
 import { Galeria } from "./galeria.model.js";
-import { Usuario } from "../usuarios/usuarios.model.js";
 import { filtros } from "../../utils/filtros.util.js";
 import { Op } from "sequelize";
 
@@ -38,13 +37,7 @@ class GaleriaController {
           ["orden", "ASC"],
           ["createdAt", "DESC"],
         ],
-        include: [
-          {
-            model: Usuario,
-            as: "creador",
-            attributes: ["id", "nombre", "email"],
-          },
-        ],
+        // SIN include - no traemos info del usuario
       });
 
       const total = items.length;
@@ -112,15 +105,7 @@ class GaleriaController {
     try {
       const { id } = req.params;
 
-      const item = await Galeria.findByPk(id, {
-        include: [
-          {
-            model: Usuario,
-            as: "creador",
-            attributes: ["id", "nombre", "email"],
-          },
-        ],
-      });
+      const item = await Galeria.findByPk(id);
 
       if (!item) {
         return res.status(404).json({
