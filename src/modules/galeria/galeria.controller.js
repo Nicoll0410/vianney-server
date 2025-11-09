@@ -1,6 +1,6 @@
 /* =========================================================
    src/modules/galeria/galeria.controller.js
-   CONTROLADO OPTIMIZADO - Manejo mejorado de base64
+   VERSIÓN CON DEBUGGING COMPLETO - Sin límites
    ========================================================= */
 import { request, response } from "express";
 import { Galeria } from "./galeria.model.js";
@@ -131,6 +131,15 @@ class GaleriaController {
       const { titulo, descripcion, tipo, url, miniatura, orden, etiquetas, activo } =
         req.body;
 
+      // ✅ DEBUG: Ver qué está llegando al backend
+      console.log("🔍 DEBUG - Datos recibidos en create:");
+      console.log("Título:", titulo);
+      console.log("Tipo:", tipo);
+      console.log("URL length:", url ? url.length : 0);
+      console.log("URL primeros 50 chars:", url ? url.substring(0, 50) + "..." : "null");
+      console.log("Miniatura length:", miniatura ? miniatura.length : 0);
+      console.log("Body completo:", JSON.stringify(req.body).substring(0, 200) + "...");
+
       // Validaciones básicas
       if (!titulo || !url || !tipo) {
         return res.status(400).json({
@@ -154,7 +163,8 @@ class GaleriaController {
         });
       }
 
-      // ✅ ELIMINADA validación de longitud - ahora acepta base64 largos
+      // ✅ DEBUG: Antes de crear en la base de datos
+      console.log("🔍 DEBUG - Intentando crear en BD...");
 
       // Crear el elemento
       const nuevoItem = await Galeria.create({
@@ -169,14 +179,24 @@ class GaleriaController {
         creadoPor: req.user.id,
       });
 
+      // ✅ DEBUG: Después de crear exitosamente
+      console.log("✅ DEBUG - Elemento creado exitosamente:", nuevoItem.id);
+
       return res.status(201).json({
         success: true,
         mensaje: "Elemento agregado a la galería exitosamente",
         data: nuevoItem,
       });
     } catch (error) {
-      console.error("Error en galeria.create:", error);
+      console.error("❌ ERROR en galeria.create:", error);
       
+      // ✅ DEBUG: Error detallado
+      console.log("🔴 DEBUG - Error completo:", {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+
       // Manejo específico de errores de base de datos
       if (error.name === 'SequelizeDatabaseError') {
         return res.status(400).json({
@@ -199,6 +219,10 @@ class GaleriaController {
       const { titulo, descripcion, tipo, url, miniatura, orden, etiquetas, activo } =
         req.body;
 
+      // ✅ DEBUG: Ver qué está llegando al backend para actualizar
+      console.log("🔍 DEBUG - Datos recibidos en update para ID:", id);
+      console.log("URL length:", url ? url.length : 0);
+
       const item = await Galeria.findByPk(id);
 
       if (!item) {
@@ -215,8 +239,6 @@ class GaleriaController {
           mensaje: "El tipo debe ser 'imagen' o 'video'",
         });
       }
-
-      // ✅ ELIMINADA validación de longitud - ahora acepta base64 largos
 
       // Actualizar campos
       const updateData = {};
