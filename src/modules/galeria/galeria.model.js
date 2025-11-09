@@ -1,6 +1,6 @@
 /* =========================================================
    src/modules/galeria/galeria.model.js
-   Modelo para gestionar fotos y videos de la barbería
+   Modelo CORREGIDO - URLs con LONGTEXT para base64
    ========================================================= */
 import { Model, DataTypes } from "sequelize";
 import { sequelize } from "../../database.js";
@@ -28,12 +28,12 @@ Galeria.init(
       defaultValue: "imagen",
     },
     url: {
-      type: DataTypes.TEXT,
+      type: DataTypes.TEXT('long'),  // ← LONGTEXT para base64
       allowNull: false,
       comment: "URL de la imagen o video (puede ser base64 o URL externa)",
     },
     miniatura: {
-      type: DataTypes.TEXT,
+      type: DataTypes.TEXT('long'),  // ← LONGTEXT para base64
       allowNull: true,
       comment: "Miniatura para videos o versión comprimida de imágenes",
     },
@@ -50,7 +50,7 @@ Galeria.init(
     },
     // Usuario que subió el contenido
     creadoPor: {
-      type: DataTypes.UUID,
+      type: DataTypes.CHAR(36),  // ← CHAR para coincidir con usuarios.id
       allowNull: false,
       comment: "ID del usuario que creó el elemento",
     },
