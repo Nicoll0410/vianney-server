@@ -1,10 +1,9 @@
 /* =========================================================
    src/modules/galeria/galeria.route.js
-   Rutas para el módulo de galería
+   RUTAS FINALES - Sin validaciones de longitud
    ========================================================= */
 import { Router } from "express";
 import { galeriaController } from "./galeria.controller.js";
-import { validaciones } from "../../middlewares/validaciones.middleware.js";
 
 export const galeriaRouter = Router();
 
@@ -16,21 +15,10 @@ galeriaRouter.get("/", galeriaController.get);
 
 galeriaRouter.get("/:id", galeriaController.findByPk);
 
-galeriaRouter.post(
-  "/",
-  [
-    validaciones.estaVacio("titulo", "El título es obligatorio"),
-    validaciones.estaVacio("tipo", "El tipo (imagen/video) es obligatorio"),
-    validaciones.estaVacio("url", "La URL es obligatoria"),
-  ],
-  galeriaController.create
-);
+// ✅ IMPORTANTE: ELIMINAR TODOS LOS MIDDLEWARES que validan longitud
+galeriaRouter.post("/", galeriaController.create);
 
-galeriaRouter.put(
-  "/:id",
-  [validaciones.estaVacio("titulo", "El título es obligatorio")],
-  galeriaController.update
-);
+galeriaRouter.put("/:id", galeriaController.update);
 
 galeriaRouter.delete("/:id", galeriaController.delete);
 

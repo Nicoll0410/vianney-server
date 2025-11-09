@@ -1,6 +1,6 @@
 /* =========================================================
    src/modules/galeria/galeria.controller.js
-   VERSIÓN CON DEBUGGING COMPLETO - Sin límites
+   VERSIÓN FINAL - Sin límites de caracteres
    ========================================================= */
 import { request, response } from "express";
 import { Galeria } from "./galeria.model.js";
@@ -136,15 +136,27 @@ class GaleriaController {
       console.log("Título:", titulo);
       console.log("Tipo:", tipo);
       console.log("URL length:", url ? url.length : 0);
-      console.log("URL primeros 50 chars:", url ? url.substring(0, 50) + "..." : "null");
       console.log("Miniatura length:", miniatura ? miniatura.length : 0);
-      console.log("Body completo:", JSON.stringify(req.body).substring(0, 200) + "...");
 
-      // Validaciones básicas
-      if (!titulo || !url || !tipo) {
+      // Validaciones básicas SOLO de existencia
+      if (!titulo || !titulo.trim()) {
         return res.status(400).json({
           success: false,
-          mensaje: "El título, URL y tipo son obligatorios",
+          mensaje: "El título es obligatorio",
+        });
+      }
+
+      if (!url) {
+        return res.status(400).json({
+          success: false,
+          mensaje: "La URL es obligatoria",
+        });
+      }
+
+      if (!tipo) {
+        return res.status(400).json({
+          success: false,
+          mensaje: "El tipo es obligatorio",
         });
       }
 
@@ -163,15 +175,14 @@ class GaleriaController {
         });
       }
 
-      // ✅ DEBUG: Antes de crear en la base de datos
-      console.log("🔍 DEBUG - Intentando crear en BD...");
+      console.log("🔧 Intentando crear en BD...");
 
-      // Crear el elemento
+      // Crear el elemento - SIN VALIDACIONES DE LONGITUD
       const nuevoItem = await Galeria.create({
-        titulo,
-        descripcion: descripcion || null,
+        titulo: titulo.trim(),
+        descripcion: descripcion ? descripcion.trim() : null,
         tipo,
-        url,
+        url, // ✅ ACEPTA CUALQUIER LONGITUD (LONGTEXT)
         miniatura: miniatura || null,
         orden: orden || 0,
         etiquetas: etiquetas || null,
@@ -179,8 +190,7 @@ class GaleriaController {
         creadoPor: req.user.id,
       });
 
-      // ✅ DEBUG: Después de crear exitosamente
-      console.log("✅ DEBUG - Elemento creado exitosamente:", nuevoItem.id);
+      console.log("✅ ÉXITO - Elemento creado en BD:", nuevoItem.id);
 
       return res.status(201).json({
         success: true,
@@ -194,7 +204,8 @@ class GaleriaController {
       console.log("🔴 DEBUG - Error completo:", {
         name: error.name,
         message: error.message,
-        stack: error.stack
+        parent: error.parent,
+        original: error.original
       });
 
       // Manejo específico de errores de base de datos
@@ -219,7 +230,6 @@ class GaleriaController {
       const { titulo, descripcion, tipo, url, miniatura, orden, etiquetas, activo } =
         req.body;
 
-      // ✅ DEBUG: Ver qué está llegando al backend para actualizar
       console.log("🔍 DEBUG - Datos recibidos en update para ID:", id);
       console.log("URL length:", url ? url.length : 0);
 
@@ -240,7 +250,7 @@ class GaleriaController {
         });
       }
 
-      // Actualizar campos
+      // Actualizar campos - SIN VALIDACIONES DE LONGITUD
       const updateData = {};
       if (titulo !== undefined) updateData.titulo = titulo;
       if (descripcion !== undefined) updateData.descripcion = descripcion;
