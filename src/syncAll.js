@@ -8,6 +8,7 @@ import { Permiso } from "./modules/roles/permisos.model.js";
 import { RolesPorPermisos } from "./modules/roles/roles_por_permisos.js";
 
 import { Usuario } from "./modules/usuarios/usuarios.model.js";
+import { Galeria } from "./modules/galeria/galeria.model.js"
 import { CodigosVerificacion } from "./modules/usuarios/codigos_verificacion.model.js";
 import { CodigosRecuperarVerificacion } from "./modules/usuarios/codigos_recuperar_password.model.js";
 
@@ -97,6 +98,16 @@ Usuario.hasMany(Notificacion, {
   foreignKey: "usuarioID", 
   as: "notificaciones",
   onDelete: "CASCADE" 
+});
+
+//GALERIA
+Galeria.belongsTo(Usuario, {
+  foreignKey: "creadoPor",
+  as: "creador",
+});
+Usuario.hasMany(Galeria, {
+  foreignKey: "creadoPor",
+  as: "galeriaItems",
 });
 
 /* SYNC */

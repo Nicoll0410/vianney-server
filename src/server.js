@@ -1,4 +1,3 @@
-// Archivo: src/server.js
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
@@ -25,6 +24,7 @@ import { Database } from "./database.js";
 import { syncAllModels } from "./syncAll.js";
 import { notificationsRouter } from "./modules/notifications/notifications.route.js";
 import { JobsManager } from "./jobs/index.js";
+import { galeriaRouter } from "./modules/galeria/galeria.route.js";
 
 export class Server {
   constructor() {
@@ -195,6 +195,7 @@ export class Server {
     this.app.use("/auth", authRouter);
     this.app.use("/public", publicRouter);
     this.app.use("/usuarios", usuarioRouter);
+    this.app.use("/galeria", galeriaRouter);
 
     // Middleware JWT para proteger el resto
     this.app.use(jwtMiddlewares.verifyToken);
