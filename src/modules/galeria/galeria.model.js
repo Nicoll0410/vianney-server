@@ -1,6 +1,6 @@
 /* =========================================================
    src/modules/galeria/galeria.model.js
-   MODELO CORREGIDO - Sin límites para URLs base64
+   MODELO CORREGIDO - Sin límites para URLs base64 y sin autenticación requerida
    ========================================================= */
 import { Model, DataTypes } from "sequelize";
 import { sequelize } from "../../database.js";
@@ -48,10 +48,11 @@ Galeria.init(
       allowNull: false,
       defaultValue: true,
     },
-    // Usuario que subió el contenido
+    // Usuario que subió el contenido - AHORA PERMITE NULL
     creadoPor: {
       type: DataTypes.CHAR(36),
-      allowNull: false,
+      allowNull: true, // ← CAMBIADO DE false A true
+      defaultValue: 'sistema', // ← VALOR POR DEFECTO
       comment: "ID del usuario que creó el elemento",
     },
     // Metadatos adicionales

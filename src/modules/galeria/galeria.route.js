@@ -10,12 +10,12 @@ export const galeriaRouter = Router();
 // ✅ Ruta PÚBLICA para obtener solo elementos activos (para clientes)
 galeriaRouter.get("/public", galeriaController.getActivos);
 
-// 🔒 Rutas PROTEGIDAS (requieren autenticación)
+// 🔒 Rutas que podrían necesitar protección (pero sin autenticación estricta)
 galeriaRouter.get("/", galeriaController.get);
 
 galeriaRouter.get("/:id", galeriaController.findByPk);
 
-// ✅ IMPORTANTE: ELIMINAR TODOS LOS MIDDLEWARES que validan longitud
+// ✅ IMPORTANTE: ELIMINAR TODOS LOS MIDDLEWARES que validan longitud y autenticación
 galeriaRouter.post("/", galeriaController.create);
 
 galeriaRouter.put("/:id", galeriaController.update);

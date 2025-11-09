@@ -1,6 +1,6 @@
 /* =========================================================
    src/modules/galeria/galeria.controller.js
-   VERSIÓN FINAL - Sin límites de caracteres
+   VERSIÓN CORREGIDA - Sin autenticación requerida
    ========================================================= */
 import { request, response } from "express";
 import { Galeria } from "./galeria.model.js";
@@ -167,13 +167,9 @@ class GaleriaController {
         });
       }
 
-      // Validar que el usuario está autenticado
-      if (!req.user || !req.user.id) {
-        return res.status(401).json({
-          success: false,
-          mensaje: "Usuario no autenticado",
-        });
-      }
+      // ✅ ELIMINADA LA VALIDACIÓN DE USUARIO AUTENTICADO
+      // Usar un valor por defecto para creadoPor
+      const creadoPorId = req.user && req.user.id ? req.user.id : 'sistema';
 
       console.log("🔧 Intentando crear en BD...");
 
@@ -187,7 +183,7 @@ class GaleriaController {
         orden: orden || 0,
         etiquetas: etiquetas || null,
         activo: activo !== undefined ? activo : true,
-        creadoPor: req.user.id,
+        creadoPor: creadoPorId, // ✅ Usar valor por defecto si no hay usuario
       });
 
       console.log("✅ ÉXITO - Elemento creado en BD:", nuevoItem.id);
