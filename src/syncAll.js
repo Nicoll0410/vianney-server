@@ -109,6 +109,15 @@ Usuario.hasMany(Galeria, {
   foreignKey: "creadoPor",
   as: "galeriaItems",
 });
+Barbero.hasMany(Galeria, {
+  foreignKey: "barberoID",
+  as: "galeria",
+});
+
+Galeria.belongsTo(Barbero, {
+  foreignKey: "barberoID",
+  as: "barbero",
+});
 
 /* SYNC */
 export async function syncAllModels() {

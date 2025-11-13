@@ -1,18 +1,18 @@
 /* =========================================================
    src/modules/galeria/galeria.controller.js
-   VERSIÓN CORREGIDA - Sin autenticación requerida
+   CONTROLADOR CON MÉTODOS PARA GALERÍA POR BARBERO
    ========================================================= */
 import { request, response } from "express";
 import { Galeria } from "./galeria.model.js";
+import { Barbero } from "../barberos/barberos.model.js";
 import { Op } from "sequelize";
 
 class GaleriaController {
-  /* ───────────── Listar todos (público y privado) ───────────── */
+  /* ───────────── Listar todos ───────────── */
   async get(req = request, res = response) {
     try {
-      const { tipo, activo, search } = req.query;
+      const { tipo, activo, search, barberoID } = req.query;
 
-      // Construir filtros
       const where = {};
 
       if (tipo && ["imagen", "video"].includes(tipo)) {
@@ -21,6 +21,10 @@ class GaleriaController {
 
       if (activo !== undefined) {
         where.activo = activo === "true";
+      }
+
+      if (barberoID) {
+        where.barberoID = barberoID;
       }
 
       if (search) {
@@ -32,18 +36,23 @@ class GaleriaController {
 
       const items = await Galeria.findAll({
         where,
+        include: [
+          {
+            model: Barbero,
+            as: "barbero",
+            attributes: ["id", "nombre", "avatar", "telefono"],
+          },
+        ],
         order: [
           ["orden", "ASC"],
           ["createdAt", "DESC"],
         ],
       });
 
-      const total = items.length;
-
       return res.json({
         success: true,
         data: items,
-        total,
+        total: items.length,
       });
     } catch (error) {
       console.error("Error en galeria.get:", error);
@@ -54,12 +63,95 @@ class GaleriaController {
     }
   }
 
-  /* ───────────── Obtener solo los activos (para clientes) ───────────── */
-  async getActivos(req = request, res = response) {
+  /* ───────────── ✅ NUEVO: Obtener galería agrupada por barberos (VISTA PRINCIPAL) ───────────── */
+  async getPorBarberos(req = request, res = response) {
     try {
+      // 1. Obtener todos los barberos
+      const barberos = await Barbero.findAll({
+        attributes: ["id", "nombre", "avatar", "telefono", "cedula"],
+        order: [["nombre", "ASC"]],
+      });
+
+      // 2. Para cada barbero, obtener su imagen destacada y contar total de items
+      const barberosConGaleria = await Promise.all(
+        barberos.map(async (barbero) => {
+          // Obtener imagen destacada
+          const imagenDestacada = await Galeria.findOne({
+            where: {
+              barberoID: barbero.id,
+              activo: true,
+              esDestacada: true,
+            },
+          });
+
+          // Si no hay destacada, tomar la primera activa
+          const imagenPrincipal =
+            imagenDestacada ||
+            (await Galeria.findOne({
+              where: {
+                barberoID: barbero.id,
+                activo: true,
+              },
+              order: [["orden", "ASC"]],
+            }));
+
+          // Contar total de items activos
+          const totalItems = await Galeria.count({
+            where: {
+              barberoID: barbero.id,
+              activo: true,
+            },
+          });
+
+          return {
+            barbero: barbero.toJSON(),
+            imagenPrincipal: imagenPrincipal ? imagenPrincipal.toJSON() : null,
+            totalItems,
+          };
+        })
+      );
+
+      // 3. Filtrar solo barberos que tienen al menos una imagen
+      const barberosConImagenes = barberosConGaleria.filter(
+        (item) => item.totalItems > 0
+      );
+
+      return res.json({
+        success: true,
+        data: barberosConImagenes,
+        total: barberosConImagenes.length,
+      });
+    } catch (error) {
+      console.error("Error en galeria.getPorBarberos:", error);
+      return res.status(400).json({
+        success: false,
+        mensaje: error.message,
+      });
+    }
+  }
+
+  /* ───────────── ✅ NUEVO: Obtener toda la galería de UN barbero específico ───────────── */
+  async getByBarbero(req = request, res = response) {
+    try {
+      const { barberoID } = req.params;
       const { tipo } = req.query;
 
-      const where = { activo: true };
+      // Verificar que el barbero existe
+      const barbero = await Barbero.findByPk(barberoID, {
+        attributes: ["id", "nombre", "avatar", "telefono", "cedula"],
+      });
+
+      if (!barbero) {
+        return res.status(404).json({
+          success: false,
+          mensaje: "Barbero no encontrado",
+        });
+      }
+
+      const where = {
+        barberoID,
+        activo: true,
+      };
 
       if (tipo && ["imagen", "video"].includes(tipo)) {
         where.tipo = tipo;
@@ -68,29 +160,22 @@ class GaleriaController {
       const items = await Galeria.findAll({
         where,
         order: [
+          ["esDestacada", "DESC"], // Destacadas primero
           ["orden", "ASC"],
           ["createdAt", "DESC"],
-        ],
-        attributes: [
-          "id",
-          "titulo",
-          "descripcion",
-          "tipo",
-          "url",
-          "miniatura",
-          "orden",
-          "etiquetas",
-          "createdAt",
         ],
       });
 
       return res.json({
         success: true,
-        data: items,
-        total: items.length,
+        data: {
+          barbero: barbero.toJSON(),
+          galeria: items,
+          total: items.length,
+        },
       });
     } catch (error) {
-      console.error("Error en galeria.getActivos:", error);
+      console.error("Error en galeria.getByBarbero:", error);
       return res.status(400).json({
         success: false,
         mensaje: error.message,
@@ -103,7 +188,15 @@ class GaleriaController {
     try {
       const { id } = req.params;
 
-      const item = await Galeria.findByPk(id);
+      const item = await Galeria.findByPk(id, {
+        include: [
+          {
+            model: Barbero,
+            as: "barbero",
+            attributes: ["id", "nombre", "avatar", "telefono"],
+          },
+        ],
+      });
 
       if (!item) {
         return res.status(404).json({
@@ -128,17 +221,20 @@ class GaleriaController {
   /* ─────────────── Crear ─────────────── */
   async create(req = request, res = response) {
     try {
-      const { titulo, descripcion, tipo, url, miniatura, orden, etiquetas, activo } =
-        req.body;
+      const {
+        titulo,
+        descripcion,
+        tipo,
+        url,
+        miniatura,
+        orden,
+        etiquetas,
+        activo,
+        barberoID,
+        esDestacada,
+      } = req.body;
 
-      // ✅ DEBUG: Ver qué está llegando al backend
-      console.log("🔍 DEBUG - Datos recibidos en create:");
-      console.log("Título:", titulo);
-      console.log("Tipo:", tipo);
-      console.log("URL length:", url ? url.length : 0);
-      console.log("Miniatura length:", miniatura ? miniatura.length : 0);
-
-      // Validaciones básicas SOLO de existencia
+      // Validaciones básicas
       if (!titulo || !titulo.trim()) {
         return res.status(400).json({
           success: false,
@@ -153,40 +249,55 @@ class GaleriaController {
         });
       }
 
-      if (!tipo) {
-        return res.status(400).json({
-          success: false,
-          mensaje: "El tipo es obligatorio",
-        });
-      }
-
-      if (!["imagen", "video"].includes(tipo)) {
+      if (!tipo || !["imagen", "video"].includes(tipo)) {
         return res.status(400).json({
           success: false,
           mensaje: "El tipo debe ser 'imagen' o 'video'",
         });
       }
 
-      // ✅ ELIMINADA LA VALIDACIÓN DE USUARIO AUTENTICADO
-      // Usar un valor por defecto para creadoPor
-      const creadoPorId = req.user && req.user.id ? req.user.id : 'sistema';
+      // ✅ Validar que se proporcionó barberoID
+      if (!barberoID) {
+        return res.status(400).json({
+          success: false,
+          mensaje: "Debes seleccionar un barbero",
+        });
+      }
 
-      console.log("🔧 Intentando crear en BD...");
+      // Verificar que el barbero existe
+      const barbero = await Barbero.findByPk(barberoID);
+      if (!barbero) {
+        return res.status(400).json({
+          success: false,
+          mensaje: "El barbero seleccionado no existe",
+        });
+      }
 
-      // Crear el elemento - SIN VALIDACIONES DE LONGITUD
+      // Si se marca como destacada, quitar la destacada anterior de ese barbero
+      if (esDestacada) {
+        await Galeria.update(
+          { esDestacada: false },
+          { where: { barberoID, esDestacada: true } }
+        );
+      }
+
+      const creadoPorId =
+        req.user && req.user.id ? req.user.id : "sistema";
+
+      // Crear el elemento
       const nuevoItem = await Galeria.create({
         titulo: titulo.trim(),
         descripcion: descripcion ? descripcion.trim() : null,
         tipo,
-        url, // ✅ ACEPTA CUALQUIER LONGITUD (LONGTEXT)
+        url,
         miniatura: miniatura || null,
         orden: orden || 0,
         etiquetas: etiquetas || null,
         activo: activo !== undefined ? activo : true,
-        creadoPor: creadoPorId, // ✅ Usar valor por defecto si no hay usuario
+        barberoID,
+        esDestacada: esDestacada || false,
+        creadoPor: creadoPorId,
       });
-
-      console.log("✅ ÉXITO - Elemento creado en BD:", nuevoItem.id);
 
       return res.status(201).json({
         success: true,
@@ -195,23 +306,6 @@ class GaleriaController {
       });
     } catch (error) {
       console.error("❌ ERROR en galeria.create:", error);
-      
-      // ✅ DEBUG: Error detallado
-      console.log("🔴 DEBUG - Error completo:", {
-        name: error.name,
-        message: error.message,
-        parent: error.parent,
-        original: error.original
-      });
-
-      // Manejo específico de errores de base de datos
-      if (error.name === 'SequelizeDatabaseError') {
-        return res.status(400).json({
-          success: false,
-          mensaje: "Error de base de datos. Contacta al administrador.",
-        });
-      }
-      
       return res.status(400).json({
         success: false,
         mensaje: error.message,
@@ -223,11 +317,18 @@ class GaleriaController {
   async update(req = request, res = response) {
     try {
       const { id } = req.params;
-      const { titulo, descripcion, tipo, url, miniatura, orden, etiquetas, activo } =
-        req.body;
-
-      console.log("🔍 DEBUG - Datos recibidos en update para ID:", id);
-      console.log("URL length:", url ? url.length : 0);
+      const {
+        titulo,
+        descripcion,
+        tipo,
+        url,
+        miniatura,
+        orden,
+        etiquetas,
+        activo,
+        barberoID,
+        esDestacada,
+      } = req.body;
 
       const item = await Galeria.findByPk(id);
 
@@ -246,7 +347,27 @@ class GaleriaController {
         });
       }
 
-      // Actualizar campos - SIN VALIDACIONES DE LONGITUD
+      // Si se cambia el barberoID, verificar que existe
+      if (barberoID && barberoID !== item.barberoID) {
+        const barbero = await Barbero.findByPk(barberoID);
+        if (!barbero) {
+          return res.status(400).json({
+            success: false,
+            mensaje: "El barbero seleccionado no existe",
+          });
+        }
+      }
+
+      // Si se marca como destacada, quitar otras destacadas del mismo barbero
+      if (esDestacada && !item.esDestacada) {
+        const barberoIdFinal = barberoID || item.barberoID;
+        await Galeria.update(
+          { esDestacada: false },
+          { where: { barberoID: barberoIdFinal, esDestacada: true } }
+        );
+      }
+
+      // Actualizar campos
       const updateData = {};
       if (titulo !== undefined) updateData.titulo = titulo;
       if (descripcion !== undefined) updateData.descripcion = descripcion;
@@ -256,6 +377,8 @@ class GaleriaController {
       if (orden !== undefined) updateData.orden = orden;
       if (etiquetas !== undefined) updateData.etiquetas = etiquetas;
       if (activo !== undefined) updateData.activo = activo;
+      if (barberoID !== undefined) updateData.barberoID = barberoID;
+      if (esDestacada !== undefined) updateData.esDestacada = esDestacada;
 
       await item.update(updateData);
 
@@ -295,6 +418,46 @@ class GaleriaController {
       });
     } catch (error) {
       console.error("Error en galeria.delete:", error);
+      return res.status(400).json({
+        success: false,
+        mensaje: error.message,
+      });
+    }
+  }
+
+  /* ───────────── ✅ NUEVO: Marcar/desmarcar como destacada ───────────── */
+  async toggleDestacada(req = request, res = response) {
+    try {
+      const { id } = req.params;
+
+      const item = await Galeria.findByPk(id);
+
+      if (!item) {
+        return res.status(404).json({
+          success: false,
+          mensaje: "Elemento no encontrado",
+        });
+      }
+
+      // Si se va a marcar como destacada, quitar otras destacadas del mismo barbero
+      if (!item.esDestacada) {
+        await Galeria.update(
+          { esDestacada: false },
+          { where: { barberoID: item.barberoID, esDestacada: true } }
+        );
+      }
+
+      await item.update({ esDestacada: !item.esDestacada });
+
+      return res.json({
+        success: true,
+        mensaje: `Imagen ${
+          item.esDestacada ? "marcada" : "desmarcada"
+        } como destacada`,
+        data: item,
+      });
+    } catch (error) {
+      console.error("Error en galeria.toggleDestacada:", error);
       return res.status(400).json({
         success: false,
         mensaje: error.message,
@@ -351,7 +514,9 @@ class GaleriaController {
 
       return res.json({
         success: true,
-        mensaje: `Elemento ${item.activo ? "activado" : "desactivado"} exitosamente`,
+        mensaje: `Elemento ${
+          item.activo ? "activado" : "desactivado"
+        } exitosamente`,
         data: item,
       });
     } catch (error) {
